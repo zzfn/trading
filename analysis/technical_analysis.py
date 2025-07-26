@@ -28,7 +28,11 @@ def analyze_data_multi_timeframe(dfs: dict) -> dict:
     df_5min = dfs.get('5min')
     if df_5min is not None:
         df_5min.ta.rsi(append=True)
+        df_5min.ta.ema(length=5, append=True)
+        df_5min.ta.ema(length=10, append=True)
         analysis['technicals']['5min_rsi'] = df_5min['RSI_14'].iloc[-1]
+        analysis['technicals']['5min_ema5'] = df_5min['EMA_5'].iloc[-1]
+        analysis['technicals']['5min_ema10'] = df_5min['EMA_10'].iloc[-1]
 
     # --- 1-Minute Analysis (for precise entry) ---
     df_1min = dfs.get('1min')

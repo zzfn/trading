@@ -25,8 +25,8 @@ def get_multi_timeframe_ai_analysis(symbol: str, analysis_data: dict, time_range
    - **结论:** [填写“看涨”、“看跌”或“中性盘整”]
 
 **第二步：5分钟线机会寻找 (Setup)**
-   - **数据:** 5分钟RSI({format_indicator(analysis_data['technicals'].get('5min_rsi'))})。
-   - **分析:** [在此处结合日线方向，分析5分钟图是否存在好的交易机会。例如，如果日线看涨，5分钟图是否处于回调支撑位？RSI是否超卖？]
+   - **数据:** 5分钟RSI({format_indicator(analysis_data['technicals'].get('5min_rsi'))}), 5周期EMA({format_indicator(analysis_data['technicals'].get('5min_ema5'))}), 10周期EMA({format_indicator(analysis_data['technicals'].get('5min_ema10'))})。
+   - **分析:** [在此处结合日线方向，分析5分钟图是否存在好的交易机会。例如，如果日线看涨，价格是否在EMA5或EMA10上方获得支撑？两条EMA是否形成金叉？]
    - **结论:** [填写“存在看涨机会”、“存在看跌机会”或“无明显机会”]
 
 **第三步：1分钟线入场执行 (Entry)**
@@ -47,7 +47,7 @@ def get_multi_timeframe_ai_analysis(symbol: str, analysis_data: dict, time_range
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         },
         json={
-            "model": "microsoft/mai-ds-r1:free",
+            "model": "anthropic/claude-3.5-sonnet",
             "messages": [
                 {"role": "user", "content": prompt}
             ]
