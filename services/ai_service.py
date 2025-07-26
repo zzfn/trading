@@ -1,44 +1,64 @@
 import requests
 from config import OPENROUTER_API_KEY
 
-def get_multi_timeframe_ai_analysis(symbol: str, analysis_data: dict, time_ranges: dict) -> str:
+def get_price_action_opportunity_report(symbol: str, analysis_data: dict, sim_date: str = None) -> str:
     """
-    Gets AI analysis from OpenRouter based on multi-timeframe data.
+    Generates a pure Price Action opportunity report.
     """
     def format_indicator(value):
         return f"{value:.2f}" if value is not None else "N/A"
 
+    sim_notice = f"**注意：当前为回测模式，所有数据截止于模拟日期 {sim_date}**\n" if sim_date else ""
+
     prompt = f"""
-你是一位顶级的专业交易员，擅长进行自顶向下的多时间框架分析 (Multi-Timeframe Analysis)。
-请严格按照“日线定方向 -> 5分钟找机会 -> 1分钟定入场”的逻辑，对 {symbol} 股票进行分析，并给出具体的交易计划。
+你是一位顶级的、纯粹的价格行为交易宗师 (Price Action Master)。你只相信K线图本身讲述的语言，所有指标都只是次要的辅助确认工具。
+你的任务是分析以下 {symbol} 的价格数据，并输出一份关于“机会点位”的精炼报告。
 
-**--- AI必须严格遵循的输出格式 ---**
+{sim_notice}**--- 最新关键价格 (5分钟线) ---**
+- 开盘价: {format_indicator(analysis_data['price_action'].get('latest_open'))}
+- 最高价: {format_indicator(analysis_data['price_action'].get('latest_high'))}
+- 最低价: {format_indicator(analysis_data['price_action'].get('latest_low'))}
+- 收盘价: {format_indicator(analysis_data['price_action'].get('latest_close'))}
 
-**数据时间范围:**
-- 日线数据范围: {time_ranges.get('daily', 'N/A')}
-- 5分钟线数据范围: {time_ranges.get('5min', 'N/A')}
-- 1分钟线数据范围: {time_ranges.get('1min', 'N/A')}
+**--- 核心价格行为数据 ---**
 
-**第一步：日线趋势判断 (Direction)**
-   - **数据:** 50日均线({format_indicator(analysis_data['technicals'].get('daily_sma50'))}), 200日均线({format_indicator(analysis_data['technicals'].get('daily_sma200'))}), 最新收盘价({format_indicator(analysis_data['price_action'].get('latest_close'))})。
-   - **分析:** [在此处填写对价格与均线关系的分析，判断市场是上涨、下跌还是盘整]
-   - **结论:** [填写“看涨”、“看跌”或“中性盘整”]
+**1. 日线市场结构 (近90天):**
+   - 前波段高点: {format_indicator(analysis_data['price_action'].get('prev_swing_high'))}
+   - 最新波段高点: {format_indicator(analysis_data['price_action'].get('last_swing_high'))}
+   - 前波段低点: {format_indicator(analysis_data['price_action'].get('prev_swing_low'))}
+   - 最新波段低点: {format_indicator(analysis_data['price_action'].get('last_swing_low'))}
+   - 90天斐波那契50%回调位: {format_indicator(analysis_data['price_action'].get('fib_50_retracement'))}
 
-**第二步：5分钟线机会寻找 (Setup)**
-   - **数据:** 5分钟RSI({format_indicator(analysis_data['technicals'].get('5min_rsi'))}), 5周期EMA({format_indicator(analysis_data['technicals'].get('5min_ema5'))}), 10周期EMA({format_indicator(analysis_data['technicals'].get('5min_ema10'))})。
-   - **分析:** [在此处结合日线方向，分析5分钟图是否存在好的交易机会。例如，如果日线看涨，价格是否在EMA5或EMA10上方获得支撑？两条EMA是否形成金叉？]
-   - **结论:** [填写“存在看涨机会”、“存在看跌机会”或“无明显机会”]
+**2. 5分钟K线与成交量:**
+   - 最新关键K线: {analysis_data['price_action'].get('candlestick_pattern', '无')}
+   - 最新5分钟成交量是否放大: {analysis_data['confirmation'].get('is_volume_high')}
 
-**第三步：1分钟线入场执行 (Entry)**
-   - **分析:** [在此处结合最新的价格，给出对精准入场时机的看法]
+**3. 辅助确认指标 (仅供参考):**
+   - 5分钟RSI: {format_indicator(analysis_data['confirmation'].get('5min_rsi'))}
+   - 5分钟MACD线: {format_indicator(analysis_data['confirmation'].get('5min_macd_line'))}
+   - 5分钟MACD信号线: {format_indicator(analysis_data['confirmation'].get('5min_macd_signal'))}
 
-**第四步：综合交易计划**
-   - **重要免责声明:** 在此部分开头必须声明：“以下内容仅为基于多时间框架技术分析的概率性推测，并非投资建议，市场风险极高，请谨慎参考。”
-   - **交易方向:** [Call (看涨) / Put (看跌) / 观望]
-   - **理想入场点:** [具体价格范围]
-   - **止损位:** [具体价格]
-   - **目标价:** [具体价格]
-   - **胜率预估:** [百分比]
+**--- 你的任务：输出机会点位报告 ---**
+
+请严格按照以下格式，直接输出报告，不要包含任何其他无关内容。
+
+**第一部分：价格行为解读**
+   - **宏观趋势 (近90天):** [基于日线高低点结构，一句话判断当前是上涨、下跌还是盘整趋势。]
+   - **当前态势:** [描述当前价格处于什么位置，以及与关键波段高/低点、斐波那契50%回调位的关系。]
+   - **潜在图表形态 (TBTL):** [是否存在宽通道、窄通道、三推楔形、头肩顶/底、双顶/底、旗形、三角形、矩形等形态？或者价格是否在“突破”、“测试”某个关键级别？如果没有，请直说“无明显图表形态”。]
+
+**第二部分：机会点位报告**
+   - **重要免责声明:** [必须声明：“以下内容仅为基于价格行为的概率性推测，并非投资建议，市场风险极高，请谨慎参考。”]
+   - **核心机会:** [用“如果...那么...”的格式，清晰地描述一个具体的、高概率的交易机会。]
+     - **例如:** “**如果**价格在[填写关键支撑区，如$150-$152]区域内，出现一个伴随成交量放大的**看涨Pin Bar或看涨吞没K线**，**那么**这将是一个强烈的看涨信号。”
+   - **交易计划:**
+     - **方向:** [Call / Put / 观望]
+     - **理想入场条件:** [描述触发交易的具体条件，例如：价格在[关键区域]出现[看涨/看跌K线形态]并伴随[成交量放大/缩量]。]
+     - **目标价:** [设定价格目标，并说明是基于哪个价格行为概念（如Measure Move，并给出计算）]
+     - **止损位:** [设定在关键K线或关键区域的另一侧]
+     - **盈亏比:** [计算并说明这个交易的盈亏比，例如：1:2，1:3]
+     - **胜率预估:** [基于信号的清晰度和共振强度，给出一个百分比]
+   - **依据总结:** [用1-2句话总结此交易计划的核心逻辑。]
 """
 
     response = requests.post(
@@ -47,7 +67,7 @@ def get_multi_timeframe_ai_analysis(symbol: str, analysis_data: dict, time_range
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         },
         json={
-            "model": "anthropic/claude-3.5-sonnet",
+            "model": "microsoft/mai-ds-r1:free",
             "messages": [
                 {"role": "user", "content": prompt}
             ]
