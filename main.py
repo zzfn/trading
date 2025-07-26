@@ -1,55 +1,74 @@
 from services import data_service, ai_service
 from analysis import technical_analysis, charting_service
-from config import ALPHA_VANTAGE_API_KEY, OPENROUTER_API_KEY
+from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, OPENROUTER_API_KEY
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+import os
+from datetime import datetime, timedelta
 
 def main():
     """
-    Main function to run the stock analysis.
+    Main function to run the multi-timeframe stock analysis using Alpaca as the sole data source.
     """
-    if not ALPHA_VANTAGE_API_KEY or not OPENROUTER_API_KEY or ALPHA_VANTAGE_API_KEY == 'YOUR_ALPHA_VANTAGE_API_KEY' or OPENROUTER_API_KEY == 'YOUR_OPENROUTER_API_KEY':
-        print("Error: API keys for Alpha Vantage or OpenRouter are not set.")
-        print("Please create a .env file from .env.example and add your API keys.")
+    if not ALPACA_API_KEY or not OPENROUTER_API_KEY:
+        print("Error: API keys for Alpaca or OpenRouter are not set.")
         return
 
-    symbol = "TSLA"  # Example stock symbol
+    symbol = "SPY"  # Example stock symbol
 
     try:
-        # 1. Get data
-        print(f"Fetching daily data for {symbol}...")
-        df = data_service.get_daily_data(symbol)
+        # --- 1. Fetch Data from Alpaca ---
+        print("Fetching all data from Alpaca...")
+        today = datetime.now()
+        one_year_ago = today - timedelta(days=365)
+        five_days_ago = today - timedelta(days=5)
+        two_days_ago = today - timedelta(days=2)
+
+        time_ranges = {
+            'daily': f"{one_year_ago.strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')}",
+            '5min': f"{five_days_ago.strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')}",
+            '1min': f"{two_days_ago.strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')}"
+        }
+
+        dfs = {
+            'daily': data_service.get_bars_from_alpaca(symbol, TimeFrame.Day, one_year_ago, today),
+            '5min': data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), five_days_ago, today),
+            '1min': data_service.get_bars_from_alpaca(symbol, TimeFrame.Minute, two_days_ago, today)
+        }
         print("Data fetched successfully.")
 
-        # 2. Analyze data
-        print("Analyzing technical data...")
-        analysis, df_with_indicators = technical_analysis.analyze_data(df)
+        # --- 2. Analyze Data ---
+        print("Analyzing multi-timeframe data...")
+        analysis = technical_analysis.analyze_data_multi_timeframe(dfs)
         print("Analysis complete.")
 
-        # 3. Get AI analysis
-        print("Getting AI analysis from OpenRouter...")
-        ai_insight = ai_service.get_ai_analysis(symbol, analysis)
+        # --- 3. Get AI Analysis ---
+        print("Getting AI analysis...")
+        ai_insight = ai_service.get_multi_timeframe_ai_analysis(symbol, analysis, time_ranges)
         print("AI analysis received.")
 
-        # 4. Generate and save advanced chart
-        print("Generating advanced chart...")
-        charting_service.plot_chart_advanced(df_with_indicators, symbol, analysis)
+        # --- 4. Save Results ---
+        now = datetime.now()
+        timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+        result_dir = os.path.join("analysis_results", f"{symbol}_{timestamp}_Alpaca_MTA")
+        os.makedirs(result_dir, exist_ok=True)
 
-        # 5. Print the report
-        print(f"\n--- Stock Analysis Report for {symbol} ---")
-        print(f"Date: {df.index[-1].date()}")
-        print("\n--- Technical Snapshot ---")
-        for key, value in analysis.items():
-            if isinstance(value, float):
-                print(f"- {key.replace('_', ' ').title()}: {value:.2f}")
-            else:
-                print(f"- {key.replace('_', ' ').title()}: {value}")
+        # Save charts
+        charting_service.plot_chart(dfs['daily'], f"{symbol} Daily Chart", os.path.join(result_dir, "daily_chart.png"))
+        charting_service.plot_chart(dfs['5min'], f"{symbol} 5-Minute Chart", os.path.join(result_dir, "5min_chart.png"))
+        charting_service.plot_chart(dfs['1min'], f"{symbol} 1-Minute Chart", os.path.join(result_dir, "1min_chart.png"))
 
-        print("\n--- AI Analyst Insights ---")
+        # Save report
+        report_path = os.path.join(result_dir, "report.txt")
+        with open(report_path, 'w') as f:
+            f.write(ai_insight)
+        print(f"Full report saved to {report_path}")
+
+        # --- 5. Print to Console ---
+        print("\n--- Multi-Timeframe Analysis Report (Alpaca Unified) ---")
         print(ai_insight)
-        print("\n---------------------------\n")
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
-

@@ -1,41 +1,37 @@
-import requests
 import pandas as pd
-from io import StringIO
-from config import ALPHA_VANTAGE_API_KEY
+from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
+from typing import Optional
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockBarsRequest
+from alpaca.data.timeframe import TimeFrame
+from datetime import datetime
 
-def get_daily_data(symbol: str) -> pd.DataFrame:
+def get_bars_from_alpaca(symbol: str, timeframe: TimeFrame, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
     """
-    Fetches daily stock data from Alpha Vantage and returns it as a pandas DataFrame.
+    Fetches historical stock bars from Alpaca. It will use the free IEX feed.
     """
-    url = (
-        f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY"
-        f"&symbol={symbol}&outputsize=full&apikey={ALPHA_VANTAGE_API_KEY}&datatype=csv"
-    )
-    response = requests.get(url)
-    response.raise_for_status()  # Raise an exception for bad status codes
-
-    # Alpha Vantage may return a JSON error message instead of CSV.
-    if response.text.strip().startswith('{'):
-        raise ValueError(f"Failed to retrieve valid CSV data. API response: {response.text}")
-
-    # Read the CSV data into a pandas DataFrame
-    csv_data = StringIO(response.text)
-    df = pd.read_csv(csv_data)
-
-    if 'timestamp' not in df.columns:
-        raise KeyError("Column 'timestamp' not found in the data. The API response may have changed or returned an error.")
-
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df = df.set_index('timestamp')
-    df = df.sort_index(ascending=True)
+    # For free data, we must use the IEX feed. The client for that is the default.
+    client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
     
-    # Rename columns for clarity
-    df.rename(columns={
-        'open': 'Open',
-        'high': 'High',
-        'low': 'Low',
-        'close': 'Close',
-        'volume': 'Volume'
-    }, inplace=True)
-
-    return df
+    request_params = StockBarsRequest(
+        symbol_or_symbols=[symbol],
+        timeframe=timeframe,
+        start=start_date,
+        end=end_date,
+        feed='iex' # Explicitly request the free IEX data feed
+    )
+    try:
+        bars = client.get_stock_bars(request_params)
+        df = bars.df
+        if df.empty:
+            print(f"No data returned from Alpaca for {symbol} with timeframe {timeframe}.")
+            return None
+        if isinstance(df.index, pd.MultiIndex):
+            df = df.reset_index(level=0, drop=True)
+        if df.index.tz is not None:
+            df.index = df.index.tz_convert(None)
+        df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
+        return df
+    except Exception as e:
+        print(f"Error fetching data from Alpaca for {symbol}: {e}")
+        return None
