@@ -11,7 +11,7 @@ def main():
         print("Please create a .env file from .env.example and add your API keys.")
         return
 
-    symbol = "BABA"  # Example stock symbol
+    symbol = "TSLA"  # Example stock symbol
 
     try:
         # 1. Get data
@@ -21,7 +21,7 @@ def main():
 
         # 2. Analyze data
         print("Analyzing technical data...")
-        analysis = technical_analysis.analyze_data(df)
+        analysis, df_with_indicators = technical_analysis.analyze_data(df)
         print("Analysis complete.")
 
         # 3. Get AI analysis
@@ -29,13 +29,12 @@ def main():
         ai_insight = ai_service.get_ai_analysis(symbol, analysis)
         print("AI analysis received.")
 
-        # 4. Generate and save chart
-        print("Generating chart...")
-        charting_service.plot_chart(df, symbol, analysis['support'], analysis['resistance'])
+        # 4. Generate and save advanced chart
+        print("Generating advanced chart...")
+        charting_service.plot_chart_advanced(df_with_indicators, symbol, analysis)
 
         # 5. Print the report
-        print("\n--- Stock Analysis Report ---")
-        print(f"Symbol: {symbol}")
+        print(f"\n--- Stock Analysis Report for {symbol} ---")
         print(f"Date: {df.index[-1].date()}")
         print("\n--- Technical Snapshot ---")
         for key, value in analysis.items():
@@ -53,3 +52,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
