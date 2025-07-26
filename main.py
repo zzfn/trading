@@ -13,7 +13,7 @@ def main():
         print("Error: API keys for Alpaca or OpenRouter are not set.")
         return
 
-    symbol = "SPY"  # Example stock symbol
+    symbol = "NIO"  # Example stock symbol
 
     try:
         # --- 1. Fetch Data from Alpaca ---
@@ -52,10 +52,9 @@ def main():
         result_dir = os.path.join("analysis_results", f"{symbol}_{timestamp}_Alpaca_MTA")
         os.makedirs(result_dir, exist_ok=True)
 
-        # Save charts
-        charting_service.plot_chart(dfs['daily'], f"{symbol} Daily Chart", os.path.join(result_dir, "daily_chart.png"))
-        charting_service.plot_chart(dfs['5min'], f"{symbol} 5-Minute Chart", os.path.join(result_dir, "5min_chart.png"))
-        charting_service.plot_chart(dfs['1min'], f"{symbol} 1-Minute Chart", os.path.join(result_dir, "1min_chart.png"))
+        # Save the 5-minute chart, which is most relevant for intraday/swing trading
+        chart_path = os.path.join(result_dir, "5min_chart.png")
+        charting_service.plot_chart(dfs['5min'], f"{symbol} 5-Minute Chart (Alpaca)", chart_path)
 
         # Save report
         report_path = os.path.join(result_dir, "report.txt")
