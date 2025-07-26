@@ -2,6 +2,7 @@ from services import data_service, ai_service
 from analysis import technical_analysis
 from config import ALPACA_API_KEY, OPENROUTER_API_KEY
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+import os
 from datetime import datetime, timedelta
 
 def main():
@@ -12,7 +13,7 @@ def main():
         print("Error: API keys for Alpaca or OpenRouter are not set.")
         return
 
-    symbol = "NVDA"  # Example stock symbol
+    symbol = input("请输入股票代码 (例如: TSLA, SPY): ").upper()
 
     try:
         # --- 1. Set Time Range (Live Analysis) ---
