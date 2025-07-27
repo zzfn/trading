@@ -253,6 +253,57 @@ def analyze_price_action(dfs: dict) -> dict:
 
     return analysis
 
+def find_two_legged_pullback(df: pd.DataFrame, ema_period: int = 20, lookback: int = 25) -> tuple[str, int] | None:
+    """
+    Identifies a two-legged pullback to a moving average (Al Brooks style).
+
+    :param df: DataFrame with OHLCV and EMA indicators.
+    :param ema_period: The EMA period to use as the dynamic support/resistance.
+    :param lookback: The number of bars to look back to find the pattern.
+    :return: A tuple (direction, index) if a pattern is found, otherwise None.
+    """
+    ema_col = f'EMA_{ema_period}'
+    if ema_col not in df.columns or len(df) < lookback:
+        return None
+
+    # Use the last `lookback` bars for analysis
+    df_slice = df.iloc[-lookback:]
+
+    # Determine the primary trend in the lookback window
+    start_price = df_slice['Close'].iloc[0]
+    end_price = df_slice['Close'].iloc[-1]
+    is_uptrend = end_price > start_price
+
+    if is_uptrend:
+        # Find pullbacks to the EMA in an uptrend
+        cross_points = df_slice[df_slice['Low'] < df_slice[ema_col]]
+        if len(cross_points) >= 2:
+            # Check if the last two touches form a higher low
+            last_touch = cross_points.iloc[-1]
+            prev_touch = cross_points.iloc[-2]
+            if last_touch['Low'] > prev_touch['Low']:
+                # Check if the price has started to move up off the last touch
+                bars_since_last_touch = df_slice.index.get_loc(last_touch.name)
+                if len(df_slice) - bars_since_last_touch > 1: # Ensure there's at least one bar after the touch
+                    if df_slice.iloc[-1]['Close'] > last_touch['High']:
+                        return ('long', df.index.get_loc(last_touch.name))
+    else: # Downtrend
+        # Find pullbacks to the EMA in a downtrend
+        cross_points = df_slice[df_slice['High'] > df_slice[ema_col]]
+        if len(cross_points) >= 2:
+            # Check if the last two touches form a lower high
+            last_touch = cross_points.iloc[-1]
+            prev_touch = cross_points.iloc[-2]
+            if last_touch['High'] < prev_touch['High']:
+                # Check if the price has started to move down off the last touch
+                bars_since_last_touch = df_slice.index.get_loc(last_touch.name)
+                if len(df_slice) - bars_since_last_touch > 1:
+                    if df_slice.iloc[-1]['Close'] < last_touch['Low']:
+                        return ('short', df.index.get_loc(last_touch.name))
+
+    return None
+
+
 def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_percent: float = 0.005, trend_filter_ema: int = 20) -> list:
     """
     Generates trading signals based on price action patterns with a trend filter.
@@ -268,6 +319,12 @@ def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_
     if ema_col not in df.columns:
         print(f"Warning: Trend filter EMA column '{ema_col}' not found in DataFrame. Skipping trend filter.")
         return signals
+
+    # High-probability signal: Two-legged pullback
+    pullback_signal = find_two_legged_pullback(df, ema_period=trend_filter_ema)
+    if pullback_signal:
+        signals.append((df.index[pullback_signal[1]], pullback_signal[0]))
+        return signals # Prioritize this signal
 
     if 'Body' not in df.columns:
         df['Body'] = abs(df['Close'] - df['Open'])

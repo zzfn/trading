@@ -55,7 +55,7 @@ def generate_analysis_stream(symbol: str):
                          event="message")
 
         # --- 4. Backtest ---
-        yield format_sse({"status": "info", "message": "正在运行优化后的价格行为回测..."}, event="message")
+        yield format_sse({"status": "info", "message": "正在运行高级价格行为回测..."}, event="message")
         backtest_start_date = end_date - timedelta(days=30)
         df_backtest_raw = data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), backtest_start_date, end_date)
         
@@ -65,10 +65,10 @@ def generate_analysis_stream(symbol: str):
             _, df_backtest = technical_analysis.calculate_technical_indicators(df_backtest_raw.copy())
             signals = technical_analysis.generate_price_action_signals(df_backtest, key_levels, trend_filter_ema=20)
             
-            backtest_results = backtest_service.get_backtest_results(df_backtest, signals, take_profit_pct=0.03, atr_multiplier=2.0)
+            backtest_results = backtest_service.get_backtest_results(df_backtest, signals, atr_multiplier=2.0, reward_risk_ratio=2.0)
             
             # --- 翻译并格式化回测结果 ---
-            strategy_desc_cn = "价格行为 (Pin Bar/吞噬形态 at S/R) + EMA20趋势过滤 & ATR动态止损"
+            strategy_desc_cn = "高级价格行为 (两段式回调/Pin/吞噬) + EMA20趋势过滤 & 2:1固定盈亏比"
             backtest_results['strategy_description'] = strategy_desc_cn
 
             # Calculate PnL as percentage of initial capital
