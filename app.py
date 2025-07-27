@@ -33,16 +33,17 @@ def generate_analysis_stream(symbol: str):
 
         # --- 1. Set Time Range (Live Analysis) ---
         end_date = datetime.now()
-        one_year_ago = end_date - timedelta(days=365)
+        daily_start_date = end_date - timedelta(days=365) # Default to one year ago
+
         five_days_ago = end_date - timedelta(days=5)
-        two_days_ago = end_date - timedelta(days=2)
+        two_days_days_ago = end_date - timedelta(days=2)
 
         # --- 2. Fetch Data ---
         yield format_sse({"status": "info", "message": f"Fetching data for {symbol} from Alpaca..."}, event="message")
         dfs = {
-            'daily': data_service.get_bars_from_alpaca(symbol, TimeFrame.Day, one_year_ago, end_date),
+            'daily': data_service.get_bars_from_alpaca(symbol, TimeFrame.Day, daily_start_date, end_date),
             '5min': data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), five_days_ago, end_date),
-            '1min': data_service.get_bars_from_alpaca(symbol, TimeFrame.Minute, two_days_ago, end_date)
+            '1min': data_service.get_bars_from_alpaca(symbol, TimeFrame.Minute, two_days_days_ago, end_date)
         }
         yield format_sse({"status": "info", "message": "Data fetched successfully."},
                          event="message")
@@ -72,3 +73,4 @@ def analyze_stock(symbol):
     return Response(generate_analysis_stream(symbol.upper()), mimetype="text/event-stream")
 
 # Remove the app.run() block as Gunicorn will handle running the app
+

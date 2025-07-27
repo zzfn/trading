@@ -8,7 +8,10 @@ def generate_price_action_prompt(symbol: str, analysis_data: dict) -> str:
 你是一位顶级的、纯粹的价格行为交易宗师 (Price Action Master)。你只相信K线图本身讲述的语言，所有指标都只是次要的辅助确认工具。
 你的任务是分析以下 {symbol} 的数据，并输出一份关于“机会点位”的精炼报告。
 
-**--- 最新关键价格 (5分钟线) ---**
+**--- 当前价格 ---**
+- **{symbol} 最新收盘价:** {format_indicator(analysis_data['price_action'].get('latest_close'))}
+
+**--- 最新关键价格 (5分钟线) ---****
 - 开盘价: {format_indicator(analysis_data['price_action'].get('latest_open'))}
 - 最高价: {format_indicator(analysis_data['price_action'].get('latest_high'))}
 - 最低价: {format_indicator(analysis_data['price_action'].get('latest_low'))}

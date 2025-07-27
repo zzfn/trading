@@ -5,64 +5,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Analysis Engine</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f4f4f4;
-            color: #333;
+        :root {
+            --primary-color: #4a90e2;
+            --text-color: #333;
+            --background-color: #f0f2f5;
+            --card-background: #fff;
+            --border-color: #e0e0e0;
+            --shadow-light: rgba(0, 0, 0, 0.05);
+            --shadow-medium: rgba(0, 0, 0, 0.1);
         }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
         .container {
             max-width: 800px;
-            margin: 0 auto;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 40px auto;
+            background-color: var(--card-background);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px var(--shadow-light);
+            border: 1px solid var(--border-color);
         }
+
         h1 {
-            color: #0056b3;
+            color: var(--primary-color);
             text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.2em;
+            font-weight: 600;
         }
+
         .input-section {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 15px;
+            margin-bottom: 25px;
+            align-items: center;
         }
+
         input[type="text"] {
             flex-grow: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 12px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+            outline: none;
+        }
+
         button {
-            padding: 10px 15px;
-            background-color: #007bff;
+            padding: 12px 25px;
+            background-color: var(--primary-color);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
         }
+
         button:hover {
-            background-color: #0056b3;
+            background-color: #3a7bd5;
+            box-shadow: 0 4px 10px var(--shadow-medium);
         }
+
         .output-section {
-            background-color: #e9e9e9;
-            padding: 15px;
-            border-radius: 4px;
-            min-height: 200px;
-            /* white-space: pre-wrap; /* Preserve whitespace and wrap text */
-            font-family: monospace;
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            min-height: 350px;
+            max-height: 600px; /* Limit height for scrollability */
             overflow-y: auto;
-            border: 1px solid #ccc;
+            border: 1px solid var(--border-color);
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.95em;
+            white-space: pre-wrap; /* Preserve whitespace and wrap text */
+            word-wrap: break-word;
         }
+
         .status-message {
-            color: #555;
+            color: #666;
             font-style: italic;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
+            text-align: center;
         }
+
         .error-message {
-            color: red;
+            color: #d9534f;
             font-weight: bold;
+        }
+
+        /* Markdown specific styles for better readability */
+        .output-section h1, .output-section h2, .output-section h3, .output-section h4, .output-section h5, .output-section h6 {
+            color: var(--primary-color);
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.3em;
+        }
+        .output-section p {
+            margin-bottom: 0.8em;
+        }
+        .output-section ul {
+            list-style-type: disc;
+            margin-left: 20px;
+            margin-bottom: 0.8em;
+        }
+        .output-section strong {
+            color: var(--text-color);
         }
     </style>
 </head>
@@ -89,6 +151,7 @@
             outputArea.innerHTML = ''; // Clear previous output
             fullMarkdownContent = ''; // Reset markdown content
             statusMessage.textContent = 'Connecting to server...';
+            statusMessage.className = 'status-message'; // Reset status message class
 
             if (!symbol) {
                 statusMessage.textContent = 'Please enter a stock symbol.';
@@ -107,7 +170,6 @@
                     outputArea.scrollTop = outputArea.scrollHeight; // Scroll to bottom
                 } else if (data.status === 'complete') {
                     statusMessage.textContent = 'Analysis complete!';
-                    // The full report is already built in outputArea.innerHTML
                     eventSource.close();
                 } else if (data.status === 'error') {
                     statusMessage.className = 'status-message error-message';

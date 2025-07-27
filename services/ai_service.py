@@ -13,6 +13,11 @@ def get_price_action_opportunity_report(symbol: str, analysis_data: dict):
     daily_indicators = analysis_data.get('technical_indicators', {}).get('daily', {})
     five_min_indicators = analysis_data.get('technical_indicators', {}).get('5min', {})
 
+    # Explicitly yield the latest close price at the beginning of the report
+    latest_close_price = analysis_data['price_action'].get('latest_close')
+    if latest_close_price is not None:
+        yield f"**{symbol} 最新收盘价:** {format_indicator(latest_close_price)}\n\n"
+
     prompt = generate_price_action_prompt(symbol, analysis_data)
 
     for model_name in current_config.OPENROUTER_MODELS:
