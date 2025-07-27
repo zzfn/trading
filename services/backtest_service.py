@@ -4,14 +4,19 @@ import pandas as pd
 class SignalStrategy(bt.Strategy):
     params = (
         ('signals', []),
-        ('stop_loss_pct', 0.0),
         ('take_profit_pct', 0.0),
+        ('atr_multiplier', 0.0), # ATR multiplier for stop loss
     )
 
     def __init__(self):
         self.dataclose = self.datas[0].close
+        self.datahigh = self.datas[0].high
+        self.datalow = self.datas[0].low
         self.order = None
+        # ATR indicator for dynamic stop loss
+        self.atr = bt.indicators.AverageTrueRange(self.datas[0])
         self.signal_map = {pd.to_datetime(s[0]).date(): s[1] for s in self.p.signals}
+        self.stop_price = None
 
     def next(self):
         current_date = self.datas[0].datetime.date(0)
@@ -27,13 +32,18 @@ class SignalStrategy(bt.Strategy):
                 elif signal_type == 'short':
                     self.order = self.sell()
         else:
+            # Dynamic stop loss based on ATR
             if self.position.size > 0:  # Long position
-                if self.dataclose[0] <= self.position.price * (1 - self.p.stop_loss_pct):
+                if self.p.atr_multiplier > 0:
+                    self.stop_price = self.position.price - self.atr[0] * self.p.atr_multiplier
+                if self.stop_price and self.dataclose[0] <= self.stop_price:
                     self.order = self.close()
                 elif self.dataclose[0] >= self.position.price * (1 + self.p.take_profit_pct):
                     self.order = self.close()
             elif self.position.size < 0:  # Short position
-                if self.dataclose[0] >= self.position.price * (1 + self.p.stop_loss_pct):
+                if self.p.atr_multiplier > 0:
+                    self.stop_price = self.position.price + self.atr[0] * self.p.atr_multiplier
+                if self.stop_price and self.dataclose[0] >= self.stop_price:
                     self.order = self.close()
                 elif self.dataclose[0] <= self.position.price * (1 - self.p.take_profit_pct):
                     self.order = self.close()
@@ -55,21 +65,21 @@ class SignalStrategy(bt.Strategy):
         self.order = None
 
 
-def run_backtest(df: pd.DataFrame, signals: list, stop_loss_pct: float, take_profit_pct: float) -> dict:
+def run_backtest(df: pd.DataFrame, signals: list, take_profit_pct: float, atr_multiplier: float) -> dict:
     """
     Runs a backtest using Backtrader on a given DataFrame based on entry signals.
 
     Args:
-        df (pd.DataFrame): DataFrame with at least 'Open', 'High', 'Low', 'Close' columns.
+        df (pd.DataFrame): DataFrame with at least 'Open', 'High', 'Low', 'Close', 'Volume' columns.
         signals (list): A list of tuples, where each tuple is (index, 'long' or 'short').
-        stop_loss_pct (float): The percentage for stop loss.
         take_profit_pct (float): The percentage for take profit.
+        atr_multiplier (float): The ATR multiplier for stop loss.
 
     Returns:
         dict: A dictionary with backtest results.
     """
     cerebro = bt.Cerebro()
-    cerebro.addstrategy(SignalStrategy, signals=signals, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct)
+    cerebro.addstrategy(SignalStrategy, signals=signals, take_profit_pct=take_profit_pct, atr_multiplier=atr_multiplier)
 
     data = bt.feeds.PandasData(dataname=df)
     cerebro.adddata(data)
@@ -106,8 +116,8 @@ def run_backtest(df: pd.DataFrame, signals: list, stop_loss_pct: float, take_pro
     }
 
 
-def get_backtest_results(df: pd.DataFrame, signals: list, stop_loss_pct: float, take_profit_pct: float) -> dict:
+def get_backtest_results(df: pd.DataFrame, signals: list, take_profit_pct: float, atr_multiplier: float) -> dict:
     """
     A wrapper for run_backtest to be used in the application.
     """
-    return run_backtest(df, signals, stop_loss_pct, take_profit_pct)
+    return run_backtest(df, signals, take_profit_pct, atr_multiplier)

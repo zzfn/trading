@@ -54,23 +54,23 @@ def generate_analysis_stream(symbol: str):
         yield format_sse({"status": "info", "message": "Analysis complete."},
                          event="message")
 
-        # --- 4. Backtest --- 
-        yield format_sse({"status": "info", "message": "Running backtest..."}, event="message")
+        # --- 4. Backtest ---
+        yield format_sse({"status": "info", "message": "Running improved Price Action backtest..."}, event="message")
         backtest_start_date = end_date - timedelta(days=30)
-        df_1min_backtest_raw = data_service.get_bars_from_alpaca(symbol, TimeFrame.Minute, backtest_start_date, end_date)
+        df_backtest_raw = data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), backtest_start_date, end_date)
         signals = []
-        if df_1min_backtest_raw is not None and not df_1min_backtest_raw.empty:
-            _, df_1min_backtest = technical_analysis.calculate_technical_indicators(df_1min_backtest_raw.copy())
-            if 'RSI_14' in df_1min_backtest.columns:
-                for i in range(len(df_1min_backtest)):
-                    if df_1min_backtest['RSI_14'].iloc[i] < 30:
-                        signals.append((df_1min_backtest.index[i], 'long'))
-                    elif df_1min_backtest['RSI_14'].iloc[i] > 70:
-                        signals.append((df_1min_backtest.index[i], 'short'))
-            backtest_results = backtest_service.get_backtest_results(df_1min_backtest, signals, stop_loss_pct=0.01, take_profit_pct=0.02)
-            print("--- Backtest Results ---")
+        if df_backtest_raw is not None and not df_backtest_raw.empty:
+            key_levels = technical_analysis.get_key_levels(analysis)
+            _, df_backtest = technical_analysis.calculate_technical_indicators(df_backtest_raw.copy())
+            signals = technical_analysis.generate_price_action_signals(df_backtest, key_levels, trend_filter_ema=50)
+            
+            # Use ATR-based stop loss and a fixed take profit
+            backtest_results = backtest_service.get_backtest_results(df_backtest, signals, take_profit_pct=0.03, atr_multiplier=2.0)
+            backtest_results['strategy_description'] = "PA (Pin Bar/Engulfing at S/R) w/ EMA50 Trend Filter & ATR SL"
+
+            print(f"--- Price Action Backtest Results (Strategy: {backtest_results['strategy_description']}) ---")
             print(backtest_results)
-            print("------------------------")
+            print("-------------------------------------")
             yield format_sse({"status": "backtest_results", "results": backtest_results}, event="message")
         else:
             backtest_results = {}

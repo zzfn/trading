@@ -242,3 +242,74 @@ def analyze_price_action(dfs: dict) -> dict:
             analysis['price_action']['pin_bar_detected'] = False
 
     return analysis
+
+def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_percent: float = 0.005, trend_filter_ema: int = 50) -> list:
+    """
+    Generates trading signals based on price action patterns with a trend filter.
+
+    :param df: DataFrame with OHLCV and EMA indicators.
+    :param key_levels: A dictionary with 'support' and 'resistance' levels.
+    :param tolerance_percent: The proximity tolerance to a key level.
+    :param trend_filter_ema: The period for the EMA trend filter.
+    :return: A list of trading signals.
+    """
+    signals = []
+    ema_col = f'EMA_{trend_filter_ema}'
+    if ema_col not in df.columns:
+        print(f"Warning: Trend filter EMA column '{ema_col}' not found in DataFrame. Skipping trend filter.")
+        return signals
+
+    if 'Body' not in df.columns:
+        df['Body'] = abs(df['Close'] - df['Open'])
+    if 'Upper_Shadow' not in df.columns:
+        df['Upper_Shadow'] = df['High'] - df[['Open', 'Close']].max(axis=1)
+    if 'Lower_Shadow' not in df.columns:
+        df['Lower_Shadow'] = df[['Open', 'Close']].min(axis=1) - df['Low']
+
+    for i in range(1, len(df)):
+        current_bar = df.iloc[i]
+        prev_bar = df.iloc[i-1]
+
+        # Trend Filter Condition
+        is_uptrend = current_bar['Close'] > current_bar[ema_col]
+        is_downtrend = current_bar['Close'] < current_bar[ema_col]
+
+        # --- Signal 1: Bullish Pin Bar at Support in an Uptrend ---
+        is_bullish_pin_bar = current_bar['Lower_Shadow'] > 2 * current_bar['Body'] and current_bar['Upper_Shadow'] < current_bar['Body']
+        if is_bullish_pin_bar and is_uptrend:
+            level_type, _ = check_proximity_to_levels(current_bar['Low'], {'support': key_levels.get('support', {})}, tolerance_percent)
+            if level_type == 'support':
+                signals.append((current_bar.name, 'long'))
+                continue
+
+        # --- Signal 2: Bearish Pin Bar at Resistance in a Downtrend ---
+        is_bearish_pin_bar = current_bar['Upper_Shadow'] > 2 * current_bar['Body'] and current_bar['Lower_Shadow'] < current_bar['Body']
+        if is_bearish_pin_bar and is_downtrend:
+            level_type, _ = check_proximity_to_levels(current_bar['High'], {'resistance': key_levels.get('resistance', {})}, tolerance_percent)
+            if level_type == 'resistance':
+                signals.append((current_bar.name, 'short'))
+                continue
+
+        # --- Signal 3: Bullish Engulfing at Support in an Uptrend ---
+        is_bullish_engulfing = (current_bar['Close'] > current_bar['Open'] and
+                                prev_bar['Close'] < prev_bar['Open'] and
+                                current_bar['Close'] > prev_bar['Open'] and
+                                current_bar['Open'] < prev_bar['Close'])
+        if is_bullish_engulfing and is_uptrend:
+            level_type, _ = check_proximity_to_levels(current_bar['Close'], {'support': key_levels.get('support', {})}, tolerance_percent)
+            if level_type == 'support':
+                signals.append((current_bar.name, 'long'))
+                continue
+
+        # --- Signal 4: Bearish Engulfing at Resistance in a Downtrend ---
+        is_bearish_engulfing = (current_bar['Close'] < current_bar['Open'] and
+                                prev_bar['Close'] > prev_bar['Open'] and
+                                current_bar['Close'] < prev_bar['Open'] and
+                                current_bar['Open'] > prev_bar['Close'])
+        if is_bearish_engulfing and is_downtrend:
+            level_type, _ = check_proximity_to_levels(current_bar['Close'], {'resistance': key_levels.get('resistance', {})}, tolerance_percent)
+            if level_type == 'resistance':
+                signals.append((current_bar.name, 'short'))
+                continue
+
+    return signals
