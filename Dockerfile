@@ -4,9 +4,18 @@ FROM python:3.11
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy requirements.txt and install dependencies
+# Copy requirements.txt
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip setuptools &&     pip install --no-cache-dir -r requirements.txt
+
+# Install pip and setuptools first
+RUN pip install --no-cache-dir setuptools==78.1.1
+
+# Install numpy explicitly
+RUN pip install --no-cache-dir numpy==1.26.4
+
+# Install the rest of the requirements.txt
+# pip will see numpy==1.26.4 is already installed and skip it.
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
