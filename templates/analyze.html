@@ -4,187 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Analysis Engine</title>
-    <style>
-        :root {
-            --bg-color: #f7f8fa;
-            --card-bg-color: #ffffff;
-            --primary-color: #3a7bd5;
-            --text-color: #333333;
-            --subtle-text-color: #666666;
-            --border-color: #e5e7eb;
-            --shadow-color: rgba(0, 0, 0, 0.05);
-            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-        }
-
-        body {
-            font-family: var(--font-sans);
-            margin: 0;
-            padding: 20px;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 20px auto;
-        }
-
-        /* --- Input Section --- */
-        .input-section {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        input[type="text"] {
-            flex-grow: 1;
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.95em;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        input[type="text"]:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(58, 123, 213, 0.2);
-            outline: none;
-        }
-
-        button {
-            padding: 8px 20px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.95em;
-            font-weight: 500;
-            transition: background-color 0.2s ease;
-        }
-
-        button:hover {
-            background-color: #2a6ac5;
-        }
-        
-        .status-message {
-            text-align: center;
-            padding: 10px;
-            margin-bottom: 20px;
-            color: var(--subtle-text-color);
-            font-size: 0.9em;
-        }
-
-        .error-message {
-            color: #d9534f;
-            font-weight: bold;
-        }
-
-        /* --- Report/Output Section --- */
-        .output-section {
-            background-color: var(--card-bg-color);
-            padding: 30px 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px var(--shadow-color);
-            border: 1px solid var(--border-color);
-            min-height: 400px;
-        }
-
-        /* --- Markdown Best Practices --- */
-        .output-section h1, .output-section h2, .output-section h3 {
-            font-weight: 600;
-            color: #111;
-            margin-top: 1.5em;
-            margin-bottom: 0.6em;
-            line-height: 1.3;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 0.4em;
-        }
-
-        .output-section h1 {
-            font-size: 1.8em;
-        }
-
-        .output-section h2 {
-            font-size: 1.4em;
-        }
-        
-        .output-section h3 {
-            font-size: 1.2em;
-            border-bottom: none;
-        }
-
-        .output-section p {
-            line-height: 1.6;
-            margin-bottom: 1em;
-        }
-
-        .output-section ul {
-            padding-left: 20px;
-            margin-bottom: 1em;
-        }
-
-        .output-section li {
-            margin-bottom: 0.5em;
-            line-height: 1.6;
-        }
-
-        .output-section strong {
-            font-weight: 600;
-            color: #000;
-        }
-        
-        .output-section pre {
-            background-color: #f4f5f7;
-            padding: 15px;
-            border-radius: 6px;
-            overflow-x: auto;
-        }
-
-        .output-section code {
-            font-family: var(--font-mono);
-            font-size: 0.9em;
-            background-color: #f4f5f7;
-            padding: 0.2em 0.4em;
-            border-radius: 3px;
-        }
-        
-        .output-section pre code {
-            background-color: transparent;
-            padding: 0;
-        }
-
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">Stock Analysis</a>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="/analyze">Live Analysis</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/backtest">Backtest</a>
-                    </li>
-                </ul>
-            </div>
+    {% include '_header.html' %}
+    <div class="container p-4">
+        <div class="flex flex-col sm:flex-row gap-4 mb-8 p-6 rounded-lg shadow-xl bg-[var(--card-bg-color)] border border-[var(--border-color)]">
+            <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., TSLA, SPY)" class="flex-grow px-5 py-3 border border-[var(--border-color)] rounded-lg text-base bg-[var(--bg-color)] text-[var(--text-color)] transition-colors duration-200 focus:border-[var(--accent-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none">
+            <button id="analyzeButton" class="px-8 py-3 bg-[#e94560] text-white rounded-lg cursor-pointer text-base font-semibold shadow-md transition-all duration-200 hover:bg-opacity-90 hover:scale-105">Analyze</button>
         </div>
-    </nav>
-
-    <div class="container">
-        <h1>Stock Analysis Engine</h1>
-        <div class="input-section">
-            <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., TSLA, SPY)">
-            <button id="analyzeButton">Analyze</button>
-        </div>
-        <div class="status-message" id="statusMessage">Enter a symbol and click Analyze to begin.</div>
-        <div class="output-section" id="outputArea">
+        <div class="text-center p-4 mb-8 text-[var(--subtle-text-color)] text-sm bg-[var(--card-bg-color)] rounded-lg shadow-md" id="statusMessage">Enter a symbol and click Analyze to begin.</div>
+        <div class="bg-[var(--card-bg-color)] p-8 rounded-lg shadow-xl border border-[var(--border-color)] min-h-[500px] prose" id="outputArea">
             <!-- Analysis report will be rendered here -->
         </div>
     </div>
+
+    <footer class="mt-auto p-4 text-center text-[var(--subtle-text-color)] text-sm">
+        <p>&copy; 2025 AI Stock Analyst. All rights reserved.</p>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
@@ -218,7 +56,7 @@
                     statusMessage.textContent = 'Analysis complete!';
                     eventSource.close();
                 } else if (data.status === 'error') {
-                    statusMessage.className = 'status-message error-message';
+                    statusMessage.className = 'text-center p-4 mb-8 text-[var(--subtle-text-color)] text-sm bg-[var(--card-bg-color)] rounded-lg shadow-md text-[var(--accent-color)] font-bold';
                     statusMessage.textContent = `Error: ${data.message}`;
                     eventSource.close();
                 }

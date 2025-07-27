@@ -1,0 +1,135 @@
+
+:root {
+    --bg-color: #1a1a2e; /* Dark background */
+    --card-bg-color: #16213e; /* Slightly lighter dark for cards */
+    --primary-color: #0a192f; /* Very dark blue, almost black, for primary elements */
+    --accent-color: #e94560; /* Electric red/pink for accents */
+    --text-color: #e0e0e0; /* Light text */
+    --subtle-text-color: #a0a0a0; /* Subtler text */
+    --border-color: #0f3460; /* Darker border */
+    --shadow-color: rgba(0, 0, 0, 0.3); /* Darker shadow */
+    --font-sans: "Inter", sans-serif; /* Modern sans-serif */
+    --font-mono: "Fira Code", monospace; /* Monospace for code */
+}
+
+/* Basic Reset & Body Styles */
+body {
+    @apply font-sans bg-[var(--bg-color)] text-[var(--text-color)] p-0 m-0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    @apply max-w-4xl mx-auto px-4 py-8;
+    flex-grow: 1;
+}
+
+/* Header */
+header {
+    @apply bg-[var(--primary-color)] text-[var(--text-color)] p-4 shadow-lg border-b border-[var(--border-color)];
+}
+
+header a {
+    @apply text-[var(--text-color)] hover:text-[var(--accent-color)] transition duration-300 ease-in-out;
+}
+
+
+
+
+
+
+
+
+
+
+
+/* Markdown Best Practices */
+.output-section h1, .output-section h2, .output-section h3 {
+    @apply font-semibold text-[var(--text-color)] mt-8 mb-4 leading-tight border-b border-[var(--border-color)] pb-2;
+}
+
+.output-section h1 {
+    @apply text-3xl;
+}
+
+.output-section h2 {
+    @apply text-2xl;
+}
+
+.output-section h3 {
+    @apply text-xl border-none;
+}
+
+.output-section p {
+    @apply leading-relaxed mb-4 text-[var(--subtle-text-color)];
+}
+
+.output-section ul {
+    @apply pl-8 mb-4 list-disc;
+}
+
+.output-section li {
+    @apply mb-2 leading-relaxed text-[var(--subtle-text-color)];
+}
+
+.output-section strong {
+    @apply font-semibold text-[var(--text-color)];
+}
+
+.output-section pre {
+    @apply bg-[var(--primary-color)] p-6 rounded-lg overflow-x-auto my-6;
+}
+
+.output-section code {
+    @apply font-mono text-sm bg-[var(--primary-color)] px-2 py-1 rounded text-[var(--accent-color)];
+}
+
+.output-section pre code {
+    @apply bg-transparent p-0 text-[var(--text-color)];
+}
+
+.output-section blockquote {
+    @apply border-l-4 border-[var(--accent-color)] pl-6 py-3 italic text-[var(--subtle-text-color)] bg-[var(--primary-color)] rounded-r-lg my-6;
+}
+
+.output-section table {
+    @apply min-w-full divide-y divide-[var(--border-color)] my-6 rounded-lg overflow-hidden;
+}
+
+.output-section th, .output-section td {
+    @apply px-6 py-4 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider;
+}
+
+.output-section thead {
+    @apply bg-[var(--primary-color)];
+}
+
+.output-section tbody {
+    @apply bg-[var(--card-bg-color)] divide-y divide-[var(--border-color)];
+}
+
+.output-section img {
+    @apply max-w-full h-auto rounded-lg my-6 shadow-lg;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Footer (optional, but good for AI style) */
+footer {
+    @apply mt-auto p-4 text-center text-[var(--subtle-text-color)] text-sm;
+}

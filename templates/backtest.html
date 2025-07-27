@@ -4,56 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backtest</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">Stock Analysis</a>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/analyze">Live Analysis</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="/backtest">Backtest</a>
-                    </li>
-                </ul>
+    {% include '_header.html' %}
+    <div class="container mx-auto mt-4 p-4">
+        <form id="backtest-form" class="bg-[var(--card-bg-color)] p-8 rounded-lg shadow-xl border border-[var(--border-color)] mb-8 flex flex-col sm:flex-row gap-4">
+            <div class="flex-grow">
+                <label for="symbol" class="block text-sm font-medium text-[var(--text-color)] mb-2">Stock Symbol</label>
+                <input type="text" class="w-full flex-grow px-5 py-3 border border-[var(--border-color)] rounded-lg text-base bg-[var(--bg-color)] text-[var(--text-color)] transition-colors duration-200 focus:border-[var(--accent-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none" id="symbol" placeholder="e.g., AAPL" required>
             </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        <h1>Run Backtest</h1>
-        <form id="backtest-form">
-            <div class="mb-3">
-                <label for="symbol" class="form-label">Stock Symbol</label>
-                <input type="text" class="form-control" id="symbol" placeholder="e.g., AAPL" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Run Backtest</button>
+            <button type="submit" class="self-end px-8 py-3 bg-[#e94560] text-white rounded-lg cursor-pointer text-base font-semibold shadow-md transition-all duration-200 hover:bg-opacity-90 hover:scale-105">Run Backtest</button>
         </form>
 
         <div id="results-container" class="mt-4" style="display: none;">
-            <h2>Backtest Results</h2>
-            <div id="summary-container"></div>
-            <h3>Trades</h3>
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Ref</th>
-                        <th>Direction</th>
-                        <th>Strategy</th>
-                        <th>Entry Date</th>
-                        <th>Entry Price</th>
-                        <th>Exit Date</th>
-                        <th>Exit Price</th>
-                        <th>PnL</th>
-                    </tr>
-                </thead>
-                <tbody id="trades-tbody"></tbody>
-            </table>
+            <h2 class="text-2xl font-bold mb-4 text-[var(--text-color)]">Backtest Results</h2>
+            <div id="summary-container" class="bg-[var(--primary-color)] p-6 rounded-lg border border-[var(--border-color)] mb-8 shadow-md"></div>
+            <h3 class="text-xl font-bold mb-3 text-[var(--text-color)]">Trades</h3>
+            <div class="overflow-x-auto bg-[var(--card-bg-color)] rounded-lg shadow border border-[var(--border-color)]">
+                <table class="min-w-full divide-y divide-[var(--border-color)]">
+                    <thead class="bg-[var(--primary-color)]">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">Ref</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">Direction</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">Strategy</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">Entry Date</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">Entry Price</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">Exit Date</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">Exit Price</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-[var(--subtle-text-color)] uppercase tracking-wider">PnL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-tbody" class="bg-[var(--card-bg-color)] divide-y divide-[var(--border-color)]"></tbody>
+                </table>
+            </div>
         </div>
     </div>
+
+    <footer class="mt-auto p-4 text-center text-[var(--subtle-text-color)] text-sm">
+        <p>&copy; 2025 AI Stock Analyst. All rights reserved.</p>
+    </footer>
 
     <script>
         document.getElementById('backtest-form').addEventListener('submit', async function(event) {
@@ -86,14 +77,14 @@
                 trades.forEach(trade => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${trade.ref}</td>
-                        <td>${trade.direction}</td>
-                        <td>${trade.strategy}</td>
-                        <td>${new Date(trade.entry_date).toLocaleString()}</td>
-                        <td>${trade.entry_price}</td>
-                        <td>${new Date(trade.exit_date).toLocaleString()}</td>
-                        <td>${trade.exit_price}</td>
-                        <td>${trade.pnl_net}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.ref}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.direction}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.strategy}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${new Date(trade.entry_date).toLocaleString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.entry_price}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${new Date(trade.exit_date).toLocaleString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.exit_price}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.pnl_net}</td>
                     `;
                     tradesTbody.appendChild(row);
                 });

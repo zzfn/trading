@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, Response, render_template
+from flask import Flask, jsonify, Response, render_template, redirect, url_for
 from services import data_service, ai_service, backtest_service
 from analysis import technical_analysis
 from config import ALPACA_API_KEY, OPENROUTER_API_KEY, current_config # Import current_config
@@ -6,7 +6,7 @@ from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from datetime import datetime, timedelta
 import json
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='templates') # Serve static files from templates
 app.debug = current_config.DEBUG # Set debug mode based on config
 
 def format_sse(data: dict, event: str = 'message') -> str:
@@ -15,6 +15,10 @@ def format_sse(data: dict, event: str = 'message') -> str:
     """
     json_data = json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {json_data}\n\n"
+
+@app.route('/')
+def index_redirect():
+    return redirect(url_for('analyze_page'))
 
 @app.route('/analyze')
 def analyze_page():
