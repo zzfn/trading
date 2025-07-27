@@ -21,7 +21,7 @@ steps:
         from_secret: nexus_docker_username
       password:
         from_secret: nexus_docker_password
-      repo: hub.ooxo.cc/home/stock-analysis-engine # Changed to stock-analysis-engine
+      repo: hub.ooxo.cc/home/trading
       tags:
         - ${DRONE_COMMIT_SHA:0:8}
         - latest
