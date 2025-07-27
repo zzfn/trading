@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy requirements.txt and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir setuptools numpy==1.26.4 && \
+RUN pip install --no-cache-dir setuptools=78.1.1 numpy==1.26.4 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
