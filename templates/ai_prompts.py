@@ -68,7 +68,7 @@ def generate_trading_signal_prompt(symbol: str, analysis_data: dict, backtest_re
    - **4小时:** Pin Bar: {format_pin_bar('4h')}, 看涨吞没: {format_engulfing('4h', 'bullish')}, 看跌吞没: {format_engulfing('4h', 'bearish')}
 
 **4. 技术指标:**
-   - **5分钟:** RSI: {format_indicator(five_min_indicators.get('rsi'))}, MACD Hist: {format_indicator(five_min_indicators.get('macd_hist'))}, ATR: {format_indicator(five_min_indicators.get('atr'))}
+   - **5分钟:** EMA(5): {format_indicator(five_min_indicators.get('ema_5'))}, EMA(10): {format_indicator(five_min_indicators.get('ema_10'))}, RSI: {format_indicator(five_min_indicators.get('rsi'))}, MACD Hist: {format_indicator(five_min_indicators.get('macd_hist'))}, ATR: {format_indicator(five_min_indicators.get('atr'))}
    - **1小时:** RSI: {format_indicator(h1_indicators.get('rsi'))}
    - **日线:** RSI: {format_indicator(daily_indicators.get('rsi'))}
 {backtest_section}

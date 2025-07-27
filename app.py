@@ -60,15 +60,20 @@ def generate_analysis_stream(symbol: str):
         df_backtest_raw = data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), backtest_start_date, end_date)
         
         if df_backtest_raw is not None and not df_backtest_raw.empty:
+            initial_capital = 100000.0 # As set in backtest_service
             key_levels = technical_analysis.get_key_levels(analysis)
             _, df_backtest = technical_analysis.calculate_technical_indicators(df_backtest_raw.copy())
-            signals = technical_analysis.generate_price_action_signals(df_backtest, key_levels, trend_filter_ema=50)
+            signals = technical_analysis.generate_price_action_signals(df_backtest, key_levels, trend_filter_ema=20)
             
             backtest_results = backtest_service.get_backtest_results(df_backtest, signals, take_profit_pct=0.03, atr_multiplier=2.0)
             
             # --- 翻译并格式化回测结果 ---
-            strategy_desc_cn = "价格行为 (Pin Bar/吞噬形态 at S/R) + EMA50趋势过滤 & ATR动态止损"
+            strategy_desc_cn = "价格行为 (Pin Bar/吞噬形态 at S/R) + EMA20趋势过滤 & ATR动态止损"
             backtest_results['strategy_description'] = strategy_desc_cn
+
+            # Calculate PnL as percentage of initial capital
+            avg_pnl_pct = (backtest_results.get('average_pnl', 0) / initial_capital)
+            total_pnl_pct = (backtest_results.get('total_pnl', 0) / initial_capital)
 
             start_date_str = backtest_start_date.strftime("%Y-%m-%d")
             end_date_str = end_date.strftime("%Y-%m-%d")
@@ -79,8 +84,8 @@ def generate_analysis_stream(symbol: str):
                 "回测时间范围": date_range_str,
                 "胜率": f"{backtest_results.get('win_rate', 0):.2%}",
                 "总交易次数": backtest_results.get('total_trades', 0),
-                "平均每笔盈亏": f"{backtest_results.get('average_pnl', 0):.4f}",
-                "总盈亏": f"{backtest_results.get('total_pnl', 0):.4f}",
+                "平均每笔盈亏": f"{avg_pnl_pct:.4%}",
+                "总盈亏": f"{total_pnl_pct:.4%}",
                 "夏普比率": f"{backtest_results.get('sharpe_ratio', 'N/A')}",
                 "最大回撤": f"{backtest_results.get('max_drawdown', 0):.2%}",
             }

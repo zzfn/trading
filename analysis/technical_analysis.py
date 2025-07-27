@@ -60,10 +60,12 @@ def calculate_technical_indicators(df: pd.DataFrame) -> tuple[dict, pd.DataFrame
         name="Comprehensive Indicators",
         description="A collection of common technical indicators.",
         ta=[
-            {"kind": "sma", "length": 20},
-            {"kind": "sma", "length": 50},
+            {"kind": "ema", "length": 5},
+            {"kind": "ema", "length": 10},
             {"kind": "ema", "length": 20},
             {"kind": "ema", "length": 50},
+            {"kind": "sma", "length": 20},
+            {"kind": "sma", "length": 50},
             {"kind": "rsi"},
             {"kind": "macd"},
             {"kind": "bbands", "length": 20},
@@ -84,10 +86,12 @@ def calculate_technical_indicators(df: pd.DataFrame) -> tuple[dict, pd.DataFrame
         latest = df.iloc[-1]
 
         key_mapping = {
-            'SMA_20': 'sma_20',
-            'SMA_50': 'sma_50',
+            'EMA_5': 'ema_5',
+            'EMA_10': 'ema_10',
             'EMA_20': 'ema_20',
             'EMA_50': 'ema_50',
+            'SMA_20': 'sma_20',
+            'SMA_50': 'sma_50',
             'RSI_14': 'rsi',
             'MACD_12_26_9': 'macd_line',
             'MACDs_12_26_9': 'macd_signal',
@@ -249,7 +253,7 @@ def analyze_price_action(dfs: dict) -> dict:
 
     return analysis
 
-def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_percent: float = 0.005, trend_filter_ema: int = 50) -> list:
+def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_percent: float = 0.005, trend_filter_ema: int = 20) -> list:
     """
     Generates trading signals based on price action patterns with a trend filter.
 
