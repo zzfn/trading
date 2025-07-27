@@ -1,7 +1,7 @@
-requests
-pandas
-pandas-ta
-python-dotenv
-mplfinance
-Flask
-alpaca-py
+requests==2.32.3
+pandas==2.3.1
+pandas-ta==0.3.14b0
+python-dotenv==1.1.1
+mplfinance==0.12.10b0
+Flask==3.1.1
+alpaca-py==0.42.0
