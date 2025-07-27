@@ -1,9 +1,11 @@
 import requests
+import json
 from config import OPENROUTER_API_KEY
 
-def get_price_action_opportunity_report(symbol: str, analysis_data: dict) -> str:
+def get_price_action_opportunity_report(symbol: str, analysis_data: dict):
     """
     Generates a comprehensive trading opportunity report using Price Action and Technical Indicators.
+    This function now streams the AI response.
     """
     def format_indicator(value, precision=2):
         return f"{value:.{precision}f}" if value is not None else "N/A"
@@ -114,18 +116,36 @@ def get_price_action_opportunity_report(symbol: str, analysis_data: dict) -> str
    - **依据总结:** [用1-2句话总结此交易计划的核心逻辑，需同时提及价格行为和关键指标的共振。]
 """
 
+    try:
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "microsoft/mai-ds-r1:free",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": True  # Enable streaming
+            },
+            stream=True  # Important: enable streaming for requests library
+        )
+        response.raise_for_status()
 
-    response = requests.post(
-        url="https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        },
-        json={
-            "model": "microsoft/mai-ds-r1:free",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
-    )
-    response.raise_for_status()
-    return response.json()['choices'][0]['message']['content']
+        for chunk in response.iter_lines():
+            if chunk:
+                decoded_chunk = chunk.decode('utf-8')
+                if decoded_chunk.startswith('data: '):
+                    try:
+                        json_data = json.loads(decoded_chunk[6:])
+                        if 'choices' in json_data and len(json_data['choices']) > 0:
+                            delta = json_data['choices'][0].get('delta', {})
+                            if 'content' in delta and delta['content']:
+                                yield delta['content']
+                    except json.JSONDecodeError:
+                        # Handle cases where a chunk might not be complete JSON
+                        pass
+    except requests.exceptions.RequestException as e:
+        yield f"Error calling OpenRouter API: {e}"
