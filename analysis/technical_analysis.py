@@ -307,12 +307,7 @@ def find_two_legged_pullback(df: pd.DataFrame, ema_period: int = 20, lookback: i
 def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_percent: float = 0.005, trend_filter_ema: int = 20) -> list:
     """
     Generates trading signals based on price action patterns with a trend filter.
-
-    :param df: DataFrame with OHLCV and EMA indicators.
-    :param key_levels: A dictionary with 'support' and 'resistance' levels.
-    :param tolerance_percent: The proximity tolerance to a key level.
-    :param trend_filter_ema: The period for the EMA trend filter.
-    :return: A list of trading signals.
+    Returns a list of tuples: (timestamp, direction, strategy_name)
     """
     signals = []
     ema_col = f'EMA_{trend_filter_ema}'
@@ -323,8 +318,8 @@ def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_
     # High-probability signal: Two-legged pullback
     pullback_signal = find_two_legged_pullback(df, ema_period=trend_filter_ema)
     if pullback_signal:
-        signals.append((df.index[pullback_signal[1]], pullback_signal[0]))
-        return signals # Prioritize this signal
+        signals.append((df.index[pullback_signal[1]], pullback_signal[0], 'Two-Legged Pullback'))
+        # Do not return early, allow other signals to be found as well
 
     if 'Body' not in df.columns:
         df['Body'] = abs(df['Close'] - df['Open'])
@@ -346,7 +341,7 @@ def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_
         if is_bullish_pin_bar and is_uptrend:
             level_type, _ = check_proximity_to_levels(current_bar['Low'], {'support': key_levels.get('support', {})}, tolerance_percent)
             if level_type == 'support':
-                signals.append((current_bar.name, 'long'))
+                signals.append((current_bar.name, 'long', 'Bullish Pin Bar'))
                 continue
 
         # --- Signal 2: Bearish Pin Bar at Resistance in a Downtrend ---
@@ -354,7 +349,7 @@ def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_
         if is_bearish_pin_bar and is_downtrend:
             level_type, _ = check_proximity_to_levels(current_bar['High'], {'resistance': key_levels.get('resistance', {})}, tolerance_percent)
             if level_type == 'resistance':
-                signals.append((current_bar.name, 'short'))
+                signals.append((current_bar.name, 'short', 'Bearish Pin Bar'))
                 continue
 
         # --- Signal 3: Bullish Engulfing at Support in an Uptrend ---
@@ -365,7 +360,7 @@ def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_
         if is_bullish_engulfing and is_uptrend:
             level_type, _ = check_proximity_to_levels(current_bar['Close'], {'support': key_levels.get('support', {})}, tolerance_percent)
             if level_type == 'support':
-                signals.append((current_bar.name, 'long'))
+                signals.append((current_bar.name, 'long', 'Bullish Engulfing'))
                 continue
 
         # --- Signal 4: Bearish Engulfing at Resistance in a Downtrend ---
@@ -376,7 +371,7 @@ def generate_price_action_signals(df: pd.DataFrame, key_levels: dict, tolerance_
         if is_bearish_engulfing and is_downtrend:
             level_type, _ = check_proximity_to_levels(current_bar['Close'], {'resistance': key_levels.get('resistance', {})}, tolerance_percent)
             if level_type == 'resistance':
-                signals.append((current_bar.name, 'short'))
+                signals.append((current_bar.name, 'short', 'Bearish Engulfing'))
                 continue
 
     return signals

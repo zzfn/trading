@@ -8,32 +8,29 @@ class TradeLogger(bt.Analyzer):
         self.closed_trades = []
 
     def notify_trade(self, trade):
-        # A new trade has been opened
         if trade.isopen:
             self.trades[trade.ref] = {
                 'ref': trade.ref,
                 'direction': 'long' if trade.size > 0 else 'short',
                 'entry_date': bt.num2date(trade.dtopen).isoformat(),
-                'entry_price': trade.price, # Store as float
-                'size': trade.size
+                'entry_price': trade.price,
+                'size': trade.size,
+                'strategy': trade.data.strategy_name # Capture strategy on open
             }
 
-        # A trade has been closed
         if trade.isclosed:
-            # Find the opening trade details
             if trade.ref in self.trades:
                 open_trade = self.trades.pop(trade.ref)
-                
-                # Calculate exit price
                 exit_price = (trade.pnl / open_trade['size']) + open_trade['entry_price']
 
                 self.closed_trades.append({
                     'ref': trade.ref,
                     'direction': open_trade['direction'],
+                    'strategy': open_trade['strategy'],
                     'entry_date': open_trade['entry_date'],
-                    'entry_price': f"{open_trade['entry_price']:.2f}", # Format for display
+                    'entry_price': f"{open_trade['entry_price']:.2f}",
                     'exit_date': bt.num2date(trade.dtclose).isoformat(),
-                    'exit_price': f'{exit_price:.2f}', # Format for display
+                    'exit_price': f'{exit_price:.2f}',
                     'pnl': f'{trade.pnl:.2f}',
                     'pnl_net': f'{trade.pnlcomm:.2f}',
                 })
@@ -50,17 +47,18 @@ class SignalStrategy(bt.Strategy):
 
     def __init__(self):
         self.atr = bt.indicators.AverageTrueRange(self.datas[0])
-        self.signal_map = {pd.to_datetime(s[0]).date(): s[1] for s in self.p.signals}
+        self.signal_map = {pd.to_datetime(s[0]).date(): (s[1], s[2]) for s in self.p.signals}
         self.order = None
 
     def next(self):
-        # 如果已经有订单或持仓，则不执行任何操作
         if self.order or self.position:
             return
 
         current_date = self.datas[0].datetime.date(0)
         if current_date in self.signal_map:
-            signal_type = self.signal_map[current_date]
+            signal_type, strategy_name = self.signal_map[current_date]
+            self.data.strategy_name = strategy_name # Store strategy name for the logger
+
             stop_loss_distance = self.atr[0] * self.p.atr_multiplier
             take_profit_distance = stop_loss_distance * self.p.reward_risk_ratio
 
@@ -79,7 +77,6 @@ class SignalStrategy(bt.Strategy):
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
             return
-        # 订单完成后，重置 self.order 以允许新订单
         if order.status in [order.Completed, order.Canceled, order.Margin, order.Rejected]:
             self.order = None
 

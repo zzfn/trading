@@ -42,6 +42,7 @@
                     <tr>
                         <th>Ref</th>
                         <th>Direction</th>
+                        <th>Strategy</th>
                         <th>Entry Date</th>
                         <th>Entry Price</th>
                         <th>Exit Date</th>
@@ -87,6 +88,7 @@
                     row.innerHTML = `
                         <td>${trade.ref}</td>
                         <td>${trade.direction}</td>
+                        <td>${trade.strategy}</td>
                         <td>${new Date(trade.entry_date).toLocaleString()}</td>
                         <td>${trade.entry_price}</td>
                         <td>${new Date(trade.exit_date).toLocaleString()}</td>
