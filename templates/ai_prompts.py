@@ -1,6 +1,6 @@
 from utils.formatters import format_indicator, format_indicator_dict
 
-def generate_price_action_prompt(symbol: str, analysis_data: dict) -> str:
+def generate_price_action_prompt(symbol: str, analysis_data: dict, backtest_results: dict = None) -> str:
     daily_indicators = analysis_data.get('technical_indicators', {}).get('daily', {})
     h4_indicators = analysis_data.get('technical_indicators', {}).get('4h', {})
     h1_indicators = analysis_data.get('technical_indicators', {}).get('1h', {})
@@ -28,11 +28,23 @@ def generate_price_action_prompt(symbol: str, analysis_data: dict) -> str:
             proximity = f", 接近阻力: {format_indicator(engulfing_data.get('near_resistance'))}"
         return f"是 (成交量放大: {engulfing_data.get('volume_spike')}{proximity})"
 
+    backtest_section = ""
+    if backtest_results and backtest_results.get('total_trades', 0) > 0:
+        backtest_section = f"""
+**--- 历史回测参考 (基于近期1分钟数据RSI策略) ---**
+*   **策略概述:** 当RSI < 30时做多，RSI > 70时做空。
+*   **总交易次数:** {backtest_results.get('total_trades', 'N/A')}
+*   **胜率:** {backtest_results.get('win_rate', 'N/A'):.2%}
+*   **夏普比率:** {backtest_results.get('sharpe_ratio', 'N/A'):.2f}
+*   **最大回撤:** {backtest_results.get('max_drawdown', 'N/A'):.2%}
+*   **注意:** 此回测结果仅供参考，它基于一个简单的RSI策略，可能无法完全代表当前复杂的市场状况。但它可以揭示在近期波动中，某种特定类型的技术信号（超买/超卖）的历史表现。
+"""
+
     prompt = f"""
 你是一位专业的、客观的价格行为分析师。你的任务是基于提供的多时间框架数据，对 {symbol} 的未来价格方向进行概率性评估。你必须保持中立，并根据所有可用的证据，为看涨（Call）和看跌（Put）两种情况分别提供胜率估算。
 
 **--- 分析框架 ---**
-你必须遵循以下框架，先分析价格行为，再结合技术指标进行确认。
+你必须遵循以下框架，先分析价格行为，再结合技术指标进行确认。如果提供了历史回测结果，请将其作为调整最终胜率估算的重要参考依据，特别是当回测的策略逻辑与当前分析的信号相似时。
 
 1.  **价格行为分析 (核心)**:
     - **K线形态与位置**: 当前K线（特别是Pin Bar, Doji, 吞没形态）出现在哪个关键价位（支撑/阻力/斐波那契）？这暗示了什么？
@@ -66,7 +78,7 @@ def generate_price_action_prompt(symbol: str, analysis_data: dict) -> str:
    - **4小时:** RSI: {format_indicator(h4_indicators.get('rsi'))}, MACD Hist: {format_indicator(h4_indicators.get('macd_hist'))}, ATR: {format_indicator(h4_indicators.get('atr'))}
    - **1小时:** RSI: {format_indicator(h1_indicators.get('rsi'))}, MACD Hist: {format_indicator(h1_indicators.get('macd_hist'))}, ATR: {format_indicator(h1_indicators.get('atr'))}
    - **5分钟:** RSI: {format_indicator(five_min_indicators.get('rsi'))}, MACD Hist: {format_indicator(five_min_indicators.get('macd_hist'))}, ATR: {format_indicator(five_min_indicators.get('atr'))}
-
+{backtest_section}
 **--- 你的任务：输出概率性评估报告 ---**
 
 请严格按照以下格式，对Call和Put的胜率进行独立的、概率性的评估。

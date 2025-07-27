@@ -5,7 +5,7 @@ import time # 用于重试间隔
 from utils.formatters import format_indicator, format_indicator_dict
 from templates.ai_prompts import generate_price_action_prompt
 
-def get_price_action_opportunity_report(symbol: str, analysis_data: dict):
+def get_price_action_opportunity_report(symbol: str, analysis_data: dict, backtest_results: dict = None):
     """
     Generates a comprehensive trading opportunity report using Price Action and Technical Indicators.
     This function now streams the AI response with retry mechanism.
