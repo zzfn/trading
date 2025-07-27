@@ -1,57 +1,87 @@
 import backtrader as bt
 import pandas as pd
 
+class TradeLogger(bt.Analyzer):
+    """Analyzer to log all trades with details."""
+    def __init__(self):
+        self.trades = {}
+        self.closed_trades = []
+
+    def notify_trade(self, trade):
+        # A new trade has been opened
+        if trade.isopen:
+            self.trades[trade.ref] = {
+                'ref': trade.ref,
+                'direction': 'long' if trade.size > 0 else 'short',
+                'entry_date': bt.num2date(trade.dtopen).isoformat(),
+                'entry_price': trade.price, # Store as float
+                'size': trade.size
+            }
+
+        # A trade has been closed
+        if trade.isclosed:
+            # Find the opening trade details
+            if trade.ref in self.trades:
+                open_trade = self.trades.pop(trade.ref)
+                
+                # Calculate exit price
+                exit_price = (trade.pnl / open_trade['size']) + open_trade['entry_price']
+
+                self.closed_trades.append({
+                    'ref': trade.ref,
+                    'direction': open_trade['direction'],
+                    'entry_date': open_trade['entry_date'],
+                    'entry_price': f"{open_trade['entry_price']:.2f}", # Format for display
+                    'exit_date': bt.num2date(trade.dtclose).isoformat(),
+                    'exit_price': f'{exit_price:.2f}', # Format for display
+                    'pnl': f'{trade.pnl:.2f}',
+                    'pnl_net': f'{trade.pnlcomm:.2f}',
+                })
+
+    def get_analysis(self):
+        return self.closed_trades
+
 class SignalStrategy(bt.Strategy):
     params = (
         ('signals', []),
-        ('atr_multiplier', 2.0),      # ATR multiplier for stop loss
-        ('reward_risk_ratio', 2.0), # Desired reward/risk ratio
+        ('atr_multiplier', 2.0),
+        ('reward_risk_ratio', 2.0),
     )
 
     def __init__(self):
-        self.dataclose = self.datas[0].close
-        self.order = None
         self.atr = bt.indicators.AverageTrueRange(self.datas[0])
         self.signal_map = {pd.to_datetime(s[0]).date(): s[1] for s in self.p.signals}
-        self.stop_price = None
-        self.take_profit_price = None
+        self.order = None
+
+    def next(self):
+        # 如果已经有订单或持仓，则不执行任何操作
+        if self.order or self.position:
+            return
+
+        current_date = self.datas[0].datetime.date(0)
+        if current_date in self.signal_map:
+            signal_type = self.signal_map[current_date]
+            stop_loss_distance = self.atr[0] * self.p.atr_multiplier
+            take_profit_distance = stop_loss_distance * self.p.reward_risk_ratio
+
+            if signal_type == 'long':
+                entry_price = self.datas[0].close[0]
+                sl_price = entry_price - stop_loss_distance
+                tp_price = entry_price + take_profit_distance
+                self.order = self.buy_bracket(sl=sl_price, tp=tp_price)
+
+            elif signal_type == 'short':
+                entry_price = self.datas[0].close[0]
+                sl_price = entry_price + stop_loss_distance
+                tp_price = entry_price - take_profit_distance
+                self.order = self.sell_bracket(sl=sl_price, tp=tp_price)
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
             return
-
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                risk = self.position.price - self.stop_price
-                self.take_profit_price = self.position.price + risk * self.p.reward_risk_ratio
-            elif order.issell():
-                risk = self.stop_price - self.position.price
-                self.take_profit_price = self.position.price - risk * self.p.reward_risk_ratio
-        
-        self.order = None
-
-    def next(self):
-        current_date = self.datas[0].datetime.date(0)
-
-        if self.order:
-            return
-
-        if not self.position:
-            if current_date in self.signal_map:
-                signal_type = self.signal_map[current_date]
-                if signal_type == 'long':
-                    self.stop_price = self.dataclose[0] - self.atr[0] * self.p.atr_multiplier
-                    self.order = self.buy()
-                elif signal_type == 'short':
-                    self.stop_price = self.dataclose[0] + self.atr[0] * self.p.atr_multiplier
-                    self.order = self.sell()
-        else:
-            if self.position.size > 0:  # Long position
-                if self.dataclose[0] <= self.stop_price or self.dataclose[0] >= self.take_profit_price:
-                    self.order = self.close()
-            elif self.position.size < 0:  # Short position
-                if self.dataclose[0] >= self.stop_price or self.dataclose[0] <= self.take_profit_price:
-                    self.order = self.close()
+        # 订单完成后，重置 self.order 以允许新订单
+        if order.status in [order.Completed, order.Canceled, order.Margin, order.Rejected]:
+            self.order = None
 
 def run_backtest(df: pd.DataFrame, signals: list, atr_multiplier: float, reward_risk_ratio: float) -> dict:
     cerebro = bt.Cerebro()
@@ -65,6 +95,7 @@ def run_backtest(df: pd.DataFrame, signals: list, atr_multiplier: float, reward_
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trade_analyzer')
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
+    cerebro.addanalyzer(TradeLogger, _name='trade_logger')
 
     results = cerebro.run()
     strat = results[0]
@@ -72,6 +103,7 @@ def run_backtest(df: pd.DataFrame, signals: list, atr_multiplier: float, reward_
     trade_analyzer = strat.analyzers.trade_analyzer.get_analysis()
     sharpe_analyzer = strat.analyzers.sharpe.get_analysis()
     drawdown_analyzer = strat.analyzers.drawdown.get_analysis()
+    trade_logger = strat.analyzers.trade_logger.get_analysis()
 
     total_trades = trade_analyzer.total.total if 'total' in trade_analyzer else 0
     win_trades = trade_analyzer.won.total if 'won' in trade_analyzer else 0
@@ -81,12 +113,15 @@ def run_backtest(df: pd.DataFrame, signals: list, atr_multiplier: float, reward_
     average_pnl = (pnl_net_total / total_trades) if total_trades > 0 else 0
 
     return {
-        'win_rate': win_rate,
-        'total_trades': total_trades,
-        'average_pnl': average_pnl,
-        'total_pnl': pnl_net_total,
-        'sharpe_ratio': sharpe_analyzer.get('sharperatio', 0.0) if sharpe_analyzer else 0.0,
-        'max_drawdown': drawdown_analyzer.max.drawdown if 'max' in drawdown_analyzer else 0.0,
+        'summary': {
+            'win_rate': win_rate,
+            'total_trades': total_trades,
+            'average_pnl': average_pnl,
+            'total_pnl': pnl_net_total,
+            'sharpe_ratio': sharpe_analyzer.get('sharperatio', 0.0) if sharpe_analyzer else 0.0,
+            'max_drawdown': drawdown_analyzer.max.drawdown if 'max' in drawdown_analyzer else 0.0,
+        },
+        'trades': trade_logger
     }
 
 def get_backtest_results(df: pd.DataFrame, signals: list, atr_multiplier: float, reward_risk_ratio: float) -> dict:

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtest</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Stock Analysis</a>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/analyze">Live Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="/backtest">Backtest</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>Run Backtest</h1>
+        <form id="backtest-form">
+            <div class="mb-3">
+                <label for="symbol" class="form-label">Stock Symbol</label>
+                <input type="text" class="form-control" id="symbol" placeholder="e.g., AAPL" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Run Backtest</button>
+        </form>
+
+        <div id="results-container" class="mt-4" style="display: none;">
+            <h2>Backtest Results</h2>
+            <div id="summary-container"></div>
+            <h3>Trades</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Ref</th>
+                        <th>Direction</th>
+                        <th>Entry Date</th>
+                        <th>Entry Price</th>
+                        <th>Exit Date</th>
+                        <th>Exit Price</th>
+                        <th>PnL</th>
+                    </tr>
+                </thead>
+                <tbody id="trades-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('backtest-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const symbol = document.getElementById('symbol').value.toUpperCase();
+            const resultsContainer = document.getElementById('results-container');
+            const summaryContainer = document.getElementById('summary-container');
+            const tradesTbody = document.getElementById('trades-tbody');
+
+            resultsContainer.style.display = 'none';
+            summaryContainer.innerHTML = '';
+            tradesTbody.innerHTML = '';
+
+            const response = await fetch(`/backtest/${symbol}`, { method: 'POST' });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                const summary = data.results.summary;
+                const trades = data.results.trades;
+
+                summaryContainer.innerHTML = `
+                    <p><strong>Win Rate:</strong> ${(summary.win_rate * 100).toFixed(2)}%</p>
+                    <p><strong>Total Trades:</strong> ${summary.total_trades}</p>
+                    <p><strong>Average PnL:</strong> ${summary.average_pnl.toFixed(2)}</p>
+                    <p><strong>Total PnL:</strong> ${summary.total_pnl.toFixed(2)}</p>
+                    <p><strong>Sharpe Ratio:</strong> ${summary.sharpe_ratio ? summary.sharpe_ratio.toFixed(2) : 'N/A'}</p>
+                    <p><strong>Max Drawdown:</strong> ${(summary.max_drawdown * 100).toFixed(2)}%</p>
+                `;
+
+                trades.forEach(trade => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${trade.ref}</td>
+                        <td>${trade.direction}</td>
+                        <td>${new Date(trade.entry_date).toLocaleString()}</td>
+                        <td>${trade.entry_price}</td>
+                        <td>${new Date(trade.exit_date).toLocaleString()}</td>
+                        <td>${trade.exit_price}</td>
+                        <td>${trade.pnl_net}</td>
+                    `;
+                    tradesTbody.appendChild(row);
+                });
+
+                resultsContainer.style.display = 'block';
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

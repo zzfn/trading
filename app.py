@@ -16,13 +16,45 @@ def format_sse(data: dict, event: str = 'message') -> str:
     json_data = json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {json_data}\n\n"
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+@app.route('/analyze')
+def analyze_page():
+    return render_template('analyze.html')
+
+@app.route('/backtest')
+def backtest_page():
+    return render_template('backtest.html')
+
+@app.route('/backtest/<symbol>', methods=['POST'])
+def run_backtest_endpoint(symbol):
+    try:
+        end_date = datetime.now()
+        backtest_start_date = end_date - timedelta(days=30)
+        df_backtest_raw = data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), backtest_start_date, end_date)
+
+        if df_backtest_raw is None or df_backtest_raw.empty:
+            return jsonify({"status": "error", "message": "No data for backtest."}), 400
+
+        # We need to run a broader analysis to get key levels for the backtest
+        daily_start_date = end_date - timedelta(days=365)
+        dfs_for_levels = {
+            'daily': data_service.get_bars_from_alpaca(symbol, TimeFrame.Day, daily_start_date, end_date),
+        }
+        analysis_for_levels = technical_analysis.analyze_price_action(dfs_for_levels)
+        key_levels = technical_analysis.get_key_levels(analysis_for_levels)
+
+        _, df_backtest = technical_analysis.calculate_technical_indicators(df_backtest_raw.copy())
+        signals = technical_analysis.generate_price_action_signals(df_backtest, key_levels, trend_filter_ema=20)
+        
+        backtest_results = backtest_service.get_backtest_results(df_backtest, signals, atr_multiplier=2.0, reward_risk_ratio=2.0)
+        
+        return jsonify({"status": "success", "results": backtest_results})
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 def generate_analysis_stream(symbol: str):
     """
-    Generates a stream of analysis updates for a given symbol.
+    Generates a stream of AI analysis updates for a given symbol.
     """
     if not ALPACA_API_KEY or not OPENROUTER_API_KEY:
         yield format_sse({"status": "error", "message": "Error: API keys for Alpaca or OpenRouter are not set."}, event="message")
@@ -31,80 +63,28 @@ def generate_analysis_stream(symbol: str):
     try:
         yield format_sse({"status": "info", "message": f"Starting analysis for {symbol}..."}, event="message")
 
-        # --- 1. Set Time Range (Live Analysis) ---
         end_date = datetime.now()
-        daily_start_date = end_date - timedelta(days=365) # Default to one year ago
-
+        daily_start_date = end_date - timedelta(days=365)
         five_days_ago = end_date - timedelta(days=5)
-        two_days_days_ago = end_date - timedelta(days=2)
 
-        # --- 2. Fetch Data ---
-        yield format_sse({"status": "info", "message": f"Fetching data for {symbol} from Alpaca..."}, event="message")
+        yield format_sse({"status": "info", "message": f"Fetching data for {symbol}..."}, event="message")
         dfs = {
             'daily': data_service.get_bars_from_alpaca(symbol, TimeFrame.Day, daily_start_date, end_date),
             '5min': data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), five_days_ago, end_date),
-            '1min': data_service.get_bars_from_alpaca(symbol, TimeFrame.Minute, two_days_days_ago, end_date)
         }
         yield format_sse({"status": "info", "message": "Data fetched successfully."},
                          event="message")
 
-        # --- 3. Analyze Price Action ---
         yield format_sse({"status": "info", "message": "Analyzing price action..."}, event="message")
         analysis = technical_analysis.analyze_price_action(dfs)
         yield format_sse({"status": "info", "message": "Analysis complete."},
                          event="message")
 
-        # --- 4. Backtest ---
-        yield format_sse({"status": "info", "message": "正在运行高级价格行为回测..."}, event="message")
-        backtest_start_date = end_date - timedelta(days=30)
-        df_backtest_raw = data_service.get_bars_from_alpaca(symbol, TimeFrame(5, TimeFrameUnit.Minute), backtest_start_date, end_date)
-        
-        if df_backtest_raw is not None and not df_backtest_raw.empty:
-            initial_capital = 100000.0 # As set in backtest_service
-            key_levels = technical_analysis.get_key_levels(analysis)
-            _, df_backtest = technical_analysis.calculate_technical_indicators(df_backtest_raw.copy())
-            signals = technical_analysis.generate_price_action_signals(df_backtest, key_levels, trend_filter_ema=20)
-            
-            backtest_results = backtest_service.get_backtest_results(df_backtest, signals, atr_multiplier=2.0, reward_risk_ratio=2.0)
-            
-            # --- 翻译并格式化回测结果 ---
-            strategy_desc_cn = "高级价格行为 (两段式回调/Pin/吞噬) + EMA20趋势过滤 & 2:1固定盈亏比"
-            backtest_results['strategy_description'] = strategy_desc_cn
-
-            # Calculate PnL as percentage of initial capital
-            avg_pnl_pct = (backtest_results.get('average_pnl', 0) / initial_capital)
-            total_pnl_pct = (backtest_results.get('total_pnl', 0) / initial_capital)
-
-            start_date_str = backtest_start_date.strftime("%Y-%m-%d")
-            end_date_str = end_date.strftime("%Y-%m-%d")
-            date_range_str = f"{start_date_str} to {end_date_str}"
-
-            results_cn = {
-                "策略描述": strategy_desc_cn,
-                "回测时间范围": date_range_str,
-                "胜率": f"{backtest_results.get('win_rate', 0):.2%}",
-                "总交易次数": backtest_results.get('total_trades', 0),
-                "平均每笔盈亏": f"{avg_pnl_pct:.4%}",
-                "总盈亏": f"{total_pnl_pct:.4%}",
-                "夏普比率": f"{backtest_results.get('sharpe_ratio', 'N/A')}",
-                "最大回撤": f"{backtest_results.get('max_drawdown', 0):.2%}",
-            }
-
-            print(f"--- 价格行为回测结果 ---")
-            for key, value in results_cn.items():
-                print(f"{key}: {value}")
-            print("--------------------------")
-            yield format_sse({"status": "backtest_results", "results": results_cn}, event="message")
-        else:
-            backtest_results = {}
-            yield format_sse({"status": "info", "message": "没有足够数据进行回测。"}, event="message")
-
-
-        # --- 5. Get AI Opportunity Report ---
         yield format_sse({"status": "info", "message": "Generating AI Opportunity Report..."}, event="message")
         full_report = ""
         current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M EDT')
-        for chunk in ai_service.get_ai_analysis(symbol, analysis, backtest_results=backtest_results, current_time=current_time_str):
+        # Note: backtest_results are no longer passed to the AI in this streamlined flow
+        for chunk in ai_service.get_ai_analysis(symbol, analysis, backtest_results=None, current_time=current_time_str):
             full_report += chunk
             yield format_sse({"status": "ai_chunk", "content": chunk}, event="message")
         yield format_sse({"status": "info", "message": "Report generated."},
