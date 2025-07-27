@@ -24,4 +24,4 @@ COPY . .
 EXPOSE 5000
 
 # Run the application
-CMD ["python", "main.py"]
+CMD ["gunicorn", "main:app", "-b", "0.0.0.0:5000", "--workers", "4"]
