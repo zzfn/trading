@@ -2,15 +2,47 @@ import pandas as pd
 import pandas_ta as ta
 import numpy as np
 
+def get_key_levels(analysis_data: dict) -> dict:
+    """Extracts all key support and resistance levels from the analysis data."""
+    levels = {'support': {}, 'resistance': {}}
+    pa = analysis_data.get('price_action', {})
+
+    # Support Levels
+    levels['support']['daily_90d_low'] = pa.get('daily_90d_low')
+    levels['support']['previous_day_low'] = pa.get('previous_day_low')
+    levels['support']['fib_382'] = pa.get('fib_382_retracement_90d')
+    levels['support']['fib_50'] = pa.get('fib_50_retracement_90d')
+    levels['support']['fib_618'] = pa.get('fib_618_retracement_90d')
+
+    # Resistance Levels
+    levels['resistance']['daily_90d_high'] = pa.get('daily_90d_high')
+    levels['resistance']['previous_day_high'] = pa.get('previous_day_high')
+
+    # Remove None values
+    levels['support'] = {k: v for k, v in levels['support'].items() if v is not None}
+    levels['resistance'] = {k: v for k, v in levels['resistance'].items() if v is not None}
+    return levels
+
+def check_proximity_to_levels(price: float, levels: dict, tolerance_percent: float = 0.005) -> tuple[str | None, float | None]:
+    """Checks if a price is close to any of the key levels."""
+    for level_type, level_values in levels.items():
+        for name, value in level_values.items():
+            if abs(price - value) / value <= tolerance_percent:
+                return level_type, value
+    return None, None
+
+
 def detect_pin_bar(df):
     df['Body'] = abs(df['Close'] - df['Open'])
     df['Upper_Shadow'] = df['High'] - df[['Open', 'Close']].max(axis=1)
     df['Lower_Shadow'] = df[['Open', 'Close']].min(axis=1) - df['Low']
-    df['Pin_Bar'] = False
-    # 定义Pin Bar规则：实体小于K线范围的30%，上/下影线大于实体的2倍
-    df.loc[(df['Body'] < 0.3 * (df['High'] - df['Low'])) & 
-           ((df['Upper_Shadow'] > 2 * df['Body']) | (df['Lower_Shadow'] > 2 * df['Body'])), 
-           'Pin_Bar'] = True
+    df['Pin_Bar'] = (df['Body'] < 0.3 * (df['High'] - df['Low'])) & \
+                   ((df['Upper_Shadow'] > 2 * df['Body']) | (df['Lower_Shadow'] > 2 * df['Body']))
+    df['shadow_to_body_ratio'] = np.where(df['Body'] > 0, (df['Upper_Shadow'] + df['Lower_Shadow']) / df['Body'], 0)
+    return df
+
+def calculate_vwap(df):
+    df['VWAP'] = ta.vwap(df['High'], df['Low'], df['Close'], df['Volume'])
     return df
 
 def calculate_technical_indicators(df: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
@@ -42,6 +74,7 @@ def calculate_technical_indicators(df: pd.DataFrame) -> tuple[dict, pd.DataFrame
     
     # Apply the strategy to the DataFrame (modifies df in place)
     df.ta.strategy(custom_strategy)
+    df = calculate_vwap(df)
 
     indicators = {}
     # Ensure there's at least one row after TA calculation
@@ -64,7 +97,8 @@ def calculate_technical_indicators(df: pd.DataFrame) -> tuple[dict, pd.DataFrame
             'STOCHd_14_3_3': 'stoch_d',
             'ADX_14': 'adx',
             'OBV': 'obv',
-            'ATR_14': 'atr'
+            'ATR_14': 'atr',
+            'VWAP': 'vwap'
         }
 
         for original_key, new_key in key_mapping.items():
@@ -77,22 +111,19 @@ def analyze_price_action(dfs: dict) -> dict:
     """
     Performs a pure price action analysis with volume and a comprehensive set of technical indicators.
     """
-    analysis = {'price_action': {}, 'confirmation': {}, 'technical_indicators': {}}
+    analysis = {'price_action': {}, 'confirmation': {}, 'technical_indicators': {}, 'trends': {}}
 
     # --- Daily Analysis: Market Structure & Key Zones ---
     df_daily = dfs.get('daily')
     if df_daily is not None and not df_daily.empty:
-        # Ensure the index is sorted for time-based slicing
         df_daily = df_daily.sort_index()
-
-        # Calculate and add technical indicators for the daily timeframe
         daily_latest_indicators, df_daily_with_ta = calculate_technical_indicators(df_daily.copy())
         analysis['technical_indicators']['daily'] = daily_latest_indicators
 
         def _get_swing_points(df_period, prefix):
             if df_period.empty:
                 return {}
-            
+
             swing_analysis = {}
             period_high = df_period['High'].max()
             period_low = df_period['Low'].min()
@@ -100,84 +131,97 @@ def analyze_price_action(dfs: dict) -> dict:
             swing_analysis[f'{prefix}_low'] = period_low
             return swing_analysis
 
-        # Analyze market structure for different daily periods
         df_90d = df_daily_with_ta.loc[df_daily_with_ta.index >= (df_daily_with_ta.index.max() - pd.Timedelta(days=90))]
         analysis['price_action'].update(_get_swing_points(df_90d, 'daily_90d'))
 
-        df_30d = df_daily_with_ta.loc[df_daily_with_ta.index >= (df_daily_with_ta.index.max() - pd.Timedelta(days=30))]
-        analysis['price_action'].update(_get_swing_points(df_30d, 'daily_30d'))
-
-        df_7d = df_daily_with_ta.loc[df_daily_with_ta.index >= (df_daily_with_ta.index.max() - pd.Timedelta(days=7))]
-        analysis['price_action'].update(_get_swing_points(df_7d, 'daily_7d'))
-
-        df_3d = df_daily_with_ta.loc[df_daily_with_ta.index >= (df_daily_with_ta.index.max() - pd.Timedelta(days=3))]
-        analysis['price_action'].update(_get_swing_points(df_3d, 'daily_3d'))
-
-        # Fibonacci 50% Retracement (based on the 90-day range)
         high_90d = analysis['price_action'].get('daily_90d_high')
         low_90d = analysis['price_action'].get('daily_90d_low')
         if high_90d is not None and low_90d is not None:
+            analysis['price_action']['fib_382_retracement_90d'] = high_90d - 0.382 * (high_90d - low_90d)
             analysis['price_action']['fib_50_retracement_90d'] = high_90d - 0.5 * (high_90d - low_90d)
+            analysis['price_action']['fib_618_retracement_90d'] = high_90d - 0.618 * (high_90d - low_90d)
 
-        # Daily Trend Analysis
-        latest_daily_close = df_daily_with_ta['Close'].iloc[-1]
-        daily_sma_50 = analysis['technical_indicators']['daily'].get('sma_50')
-        daily_sma_20 = analysis['technical_indicators']['daily'].get('sma_20')
+        if len(df_daily_with_ta) > 1:
+            analysis['price_action']['previous_day_high'] = df_daily_with_ta['High'].iloc[-2]
+            analysis['price_action']['previous_day_low'] = df_daily_with_ta['Low'].iloc[-2]
 
-        if daily_sma_50 is not None:
-            if latest_daily_close > daily_sma_50:
-                analysis['price_action']['daily_trend_sma50'] = "Above 50-SMA (Bullish Bias)"
-            elif latest_daily_close < daily_sma_50:
-                analysis['price_action']['daily_trend_sma50'] = "Below 50-SMA (Bearish Bias)"
+    key_levels = get_key_levels(analysis)
+
+    # --- Multi-Timeframe Analysis ---
+    for timeframe in ['1h', '4h', 'daily']:
+        df = dfs.get(timeframe)
+        if df is not None and not df.empty:
+            latest_indicators, df_with_ta = calculate_technical_indicators(df.copy())
+            analysis['technical_indicators'][timeframe] = latest_indicators
+
+            latest_bar = df_with_ta.iloc[-1]
+            analysis['price_action'][f'{timeframe}_ohlcv'] = {
+                'open': latest_bar['Open'],
+                'high': latest_bar['High'],
+                'low': latest_bar['Low'],
+                'close': latest_bar['Close'],
+                'volume': latest_bar['Volume']
+            }
+
+            # Trend Analysis
+            sma_20 = latest_indicators.get('sma_20')
+            sma_50 = latest_indicators.get('sma_50')
+            if sma_20 and sma_50:
+                if sma_20 > sma_50:
+                    analysis['trends'][timeframe] = 'Uptrend'
+                else:
+                    analysis['trends'][timeframe] = 'Downtrend'
             else:
-                analysis['price_action']['daily_trend_sma50'] = "At 50-SMA (Neutral)"
-        
-        # Check for sufficient data before accessing iloc[-2]
-        if daily_sma_20 is not None and daily_sma_50 is not None and len(df_daily_with_ta) >= 2:
-            # Access SMA values from the DataFrame with TA columns
-            prev_daily_sma_20 = df_daily_with_ta['SMA_20'].iloc[-2]
-            prev_daily_sma_50 = df_daily_with_ta['SMA_50'].iloc[-2]
+                analysis['trends'][timeframe] = 'Neutral'
 
-            if daily_sma_20 > daily_sma_50 and prev_daily_sma_20 <= prev_daily_sma_50:
-                analysis['price_action']['daily_sma_crossover'] = "20-SMA crossed above 50-SMA (Golden Cross)"
-            elif daily_sma_20 < daily_sma_50 and prev_daily_sma_20 >= prev_daily_sma_50:
-                analysis['price_action']['daily_sma_crossover'] = "20-SMA crossed below 50-SMA (Death Cross)"
-            else:
-                analysis['price_action']['daily_sma_crossover'] = "No recent SMA crossover"
-        else:
-            analysis['price_action']['daily_sma_crossover'] = "N/A (Insufficient data for SMA crossover)"
 
-        # Price relative to 90-day high/low
-        if high_90d is not None and low_90d is not None:
-            if latest_daily_close >= high_90d * 0.99: # Within 1% of 90-day high
-                analysis['price_action']['relative_to_90d_range'] = "Near 90-day High"
-            elif latest_daily_close <= low_90d * 1.01: # Within 1% of 90-day low
-                analysis['price_action']['relative_to_90d_range'] = "Near 90-day Low"
+            # Candlestick Pattern Detection
+            df_with_ta = detect_pin_bar(df_with_ta.copy())
+            latest_bar_with_pin = df_with_ta.iloc[-1]
+            if latest_bar_with_pin['Pin_Bar']:
+                level_type, level_value = check_proximity_to_levels(latest_bar_with_pin['Close'], key_levels)
+                analysis['price_action'][f'{timeframe}_pin_bar'] = {
+                    'detected': True,
+                    'shadow_to_body_ratio': latest_bar_with_pin['shadow_to_body_ratio'],
+                    'volume_spike': latest_bar_with_pin['Volume'] > df_with_ta['Volume'].iloc[-10:-1].mean() * 1.5,
+                    f'near_{level_type}': level_value
+                }
             else:
-                analysis['price_action']['relative_to_90d_range'] = "Within 90-day Range"
+                analysis['price_action'][f'{timeframe}_pin_bar'] = {'detected': False}
 
-        # N-day High/Low Breakout Detection
-        periods = {'3d': analysis['price_action'].get('daily_3d_high'), '7d': analysis['price_action'].get('daily_7d_high'),
-                   '30d': analysis['price_action'].get('daily_30d_high'), '90d': analysis['price_action'].get('daily_90d_high')}
-        periods_low = {'3d': analysis['price_action'].get('daily_3d_low'), '7d': analysis['price_action'].get('daily_7d_low'),
-                       '30d': analysis['price_action'].get('daily_30d_low'), '90d': analysis['price_action'].get('daily_90d_low')}
+            if len(df_with_ta) >= 2:
+                prev_bar = df_with_ta.iloc[-2]
+                current_bar = df_with_ta.iloc[-1]
+                if (current_bar['Close'] > current_bar['Open'] and
+                    prev_bar['Close'] < prev_bar['Open'] and
+                    current_bar['Open'] < prev_bar['Close'] and
+                    current_bar['Close'] > prev_bar['Open']):
+                    level_type, level_value = check_proximity_to_levels(current_bar['Close'], key_levels)
+                    analysis['price_action'][f'{timeframe}_bullish_engulfing'] = {
+                        'detected': True,
+                        'volume_spike': current_bar['Volume'] > prev_bar['Volume'] * 1.5,
+                        f'near_{level_type}': level_value
+                    }
+                else:
+                    analysis['price_action'][f'{timeframe}_bullish_engulfing'] = {'detected': False}
 
-        for p_key, p_high in periods.items():
-            if p_high is not None and latest_daily_close >= p_high:
-                analysis['price_action'][f'daily_{p_key}_high_breakout'] = True
-            else:
-                analysis['price_action'][f'daily_{p_key}_high_breakout'] = False
-        
-        for p_key, p_low in periods_low.items():
-            if p_low is not None and latest_daily_close <= p_low:
-                analysis['price_action'][f'daily_{p_key}_low_breakout'] = True
-            else:
-                analysis['price_action'][f'daily_{p_key}_low_breakout'] = False
+                if (current_bar['Close'] < current_bar['Open'] and
+                    prev_bar['Close'] > prev_bar['Open'] and
+                    current_bar['Open'] > prev_bar['Close'] and
+                    current_bar['Close'] < prev_bar['Open']):
+                    level_type, level_value = check_proximity_to_levels(current_bar['Close'], key_levels)
+                    analysis['price_action'][f'{timeframe}_bearish_engulfing'] = {
+                        'detected': True,
+                        'volume_spike': current_bar['Volume'] > prev_bar['Volume'] * 1.5,
+                        f'near_{level_type}': level_value
+                    }
+                else:
+                    analysis['price_action'][f'{timeframe}_bearish_engulfing'] = {'detected': False}
+
 
     # --- 5-Minute Analysis: Candlestick & Volume Confirmation ---
     df_5min = dfs.get('5min')
     if df_5min is not None and not df_5min.empty:
-        # Calculate and add technical indicators for the 5-minute timeframe
         five_min_latest_indicators, df_5min_with_ta = calculate_technical_indicators(df_5min.copy())
         analysis['technical_indicators']['5min'] = five_min_latest_indicators
 
@@ -187,202 +231,14 @@ def analyze_price_action(dfs: dict) -> dict:
         analysis['price_action']['latest_low'] = latest_bar['Low']
         analysis['price_action']['latest_close'] = latest_bar['Close']
 
-        # Stop Loss / Take Profit Calculations
-        latest_close = analysis['price_action']['latest_close']
-        atr_value = analysis['technical_indicators']['5min'].get('atr') # ATR_14 is mapped to 'atr'
-
-        if atr_value is not None:
-            # ATR-based SL/TP (for a long position entry at latest_close)
-            atr_sl_multiplier = 2.0
-            atr_tp_multiplier = 3.0
-            analysis['price_action']['atr_stop_loss'] = latest_close - (atr_sl_multiplier * atr_value)
-            analysis['price_action']['atr_take_profit'] = latest_close + (atr_tp_multiplier * atr_value)
-        else:
-            analysis['price_action']['atr_stop_loss'] = None
-            analysis['price_action']['atr_take_profit'] = None
-
-        # Fixed Points SL/TP (for a long position entry at latest_close)
-        # These values are examples and should be adjusted based on asset and timeframe
-        fixed_points_sl = 50.0 # Example: 50 points below entry
-        fixed_points_tp = 150.0 # Example: 150 points above entry
-        analysis['price_action']['fixed_points_stop_loss'] = latest_close - fixed_points_sl
-        analysis['price_action']['fixed_points_take_profit'] = latest_close + fixed_points_tp
-
-        # Key Price Level SL/TP Suggestions (for a long position entry at latest_close)
-        key_level_sl_suggestions = []
-        key_level_tp_suggestions = []
-
-        # Use daily swing points for key levels
-        daily_3d_low = analysis['price_action'].get('daily_3d_low')
-        daily_3d_high = analysis['price_action'].get('daily_3d_high')
-        daily_7d_low = analysis['price_action'].get('daily_7d_low')
-        daily_7d_high = analysis['price_action'].get('daily_7d_high')
-        fib_50_retracement_90d = analysis['price_action'].get('fib_50_retracement_90d')
-
-        if daily_3d_low is not None and latest_close > daily_3d_low:
-            key_level_sl_suggestions.append(f"Below 3-day Low ({daily_3d_low:.2f})")
-        if daily_7d_low is not None and latest_close > daily_7d_low:
-            key_level_sl_suggestions.append(f"Below 7-day Low ({daily_7d_low:.2f})")
-        if fib_50_retracement_90d is not None and latest_close > fib_50_retracement_90d:
-            key_level_sl_suggestions.append(f"Below 90-day Fib 50% Retracement ({fib_50_retracement_90d:.2f})")
-
-        if daily_3d_high is not None and latest_close < daily_3d_high:
-            key_level_tp_suggestions.append(f"Near 3-day High ({daily_3d_high:.2f})")
-        if daily_7d_high is not None and latest_close < daily_7d_high:
-            key_level_tp_suggestions.append(f"Near 7-day High ({daily_7d_high:.2f})")
-
-        analysis['price_action']['key_level_stop_loss_suggestions'] = key_level_sl_suggestions if key_level_sl_suggestions else ["None (No relevant low below current price)"]
-        analysis['price_action']['key_level_take_profit_suggestions'] = key_level_tp_suggestions if key_level_tp_suggestions else ["None (No relevant high above current price)"]
-
-        # Volume Analysis
         avg_volume = df_5min_with_ta['Volume'].tail(20).mean()
         analysis['confirmation']['is_volume_high'] = latest_bar['Volume'] > (avg_volume * 1.5)
-        
-        # Candlestick Pattern (Pin Bar detection)
+
         df_5min_with_ta = detect_pin_bar(df_5min_with_ta.copy())
         latest_bar_with_pin = df_5min_with_ta.iloc[-1]
         if latest_bar_with_pin['Pin_Bar']:
             analysis['price_action']['pin_bar_detected'] = True
-            # Determine if it's a bullish or bearish pin bar based on wick
-            body_size = abs(latest_bar_with_pin['Open'] - latest_bar_with_pin['Close'])
-            upper_wick = latest_bar_with_pin['High'] - max(latest_bar_with_pin['Open'], latest_bar_with_pin['Close'])
-            lower_wick = min(latest_bar_with_pin['Open'], latest_bar_with_pin['Close']) - latest_bar_with_pin['Low']
-            if lower_wick > upper_wick:
-                analysis['price_action']['pin_bar_type'] = "Bullish Pin Bar"
-            else:
-                analysis['price_action']['pin_bar_type'] = "Bearish Pin Bar"
         else:
             analysis['price_action']['pin_bar_detected'] = False
-            analysis['price_action']['pin_bar_type'] = "None"
-
-        # Manual Candlestick Pattern Detection
-        # Ensure there are enough bars for pattern recognition (at least 2 for engulfing, 3 for morning/evening star)
-        if len(df_5min_with_ta) >= 3:
-            # Engulfing Pattern
-            prev_bar = df_5min_with_ta.iloc[-2]
-            current_bar = df_5min_with_ta.iloc[-1]
-
-            # Bullish Engulfing
-            if (current_bar['Close'] > current_bar['Open'] and 
-                prev_bar['Close'] < prev_bar['Open'] and 
-                current_bar['Open'] < prev_bar['Close'] and 
-                current_bar['Close'] > prev_bar['Open']):
-                analysis['price_action']['bullish_engulfing'] = True
-            else:
-                analysis['price_action']['bullish_engulfing'] = False
-
-            # Bearish Engulfing
-            if (current_bar['Close'] < current_bar['Open'] and 
-                prev_bar['Close'] > prev_bar['Open'] and 
-                current_bar['Open'] > prev_bar['Close'] and 
-                current_bar['Close'] < prev_bar['Open']):
-                analysis['price_action']['bearish_engulfing'] = True
-            else:
-                analysis['price_action']['bearish_engulfing'] = False
-
-            # Doji (simplified: very small body)
-            if abs(current_bar['Open'] - current_bar['Close']) < (current_bar['High'] - current_bar['Low']) * 0.1:
-                analysis['price_action']['doji_pattern'] = True
-            else:
-                analysis['price_action']['doji_pattern'] = False
-
-            # Hammer (simplified: small body, long lower wick, little/no upper wick)
-            if (current_bar['Close'] > current_bar['Open'] and # Bullish body
-                (current_bar['High'] - max(current_bar['Open'], current_bar['Close'])) < (current_bar['High'] - current_bar['Low']) * 0.1 and # Small upper wick
-                (min(current_bar['Open'], current_bar['Close']) - current_bar['Low']) > (current_bar['High'] - current_bar['Low']) * 0.6):
-                analysis['price_action']['hammer_pattern'] = True
-            elif (current_bar['Close'] < current_bar['Open'] and # Bearish body
-                  (current_bar['High'] - max(current_bar['Open'], current_bar['Close'])) < (current_bar['High'] - current_bar['Low']) * 0.1 and # Small upper wick
-                  (min(current_bar['Open'], current_bar['Close']) - current_bar['Low']) > (current_bar['High'] - current_bar['Low']) * 0.6):
-                analysis['price_action']['hammer_pattern'] = True
-            else:
-                analysis['price_action']['hammer_pattern'] = False
-
-            # Inverted Hammer (simplified: small body, long upper wick, little/no lower wick)
-            if (current_bar['Close'] > current_bar['Open'] and # Bullish body
-                (current_bar['High'] - max(current_bar['Open'], current_bar['Close'])) > (current_bar['High'] - current_bar['Low']) * 0.6 and # Long upper wick
-                (min(current_bar['Open'], current_bar['Close']) - current_bar['Low']) < (current_bar['High'] - current_bar['Low']) * 0.1):
-                analysis['price_action']['inverted_hammer_pattern'] = True
-            elif (current_bar['Close'] < current_bar['Open'] and # Bearish body
-                  (current_bar['High'] - max(current_bar['Open'], current_bar['Close'])) > (current_bar['High'] - current_bar['Low']) * 0.6 and # Long upper wick
-                  (min(current_bar['Open'], current_bar['Close']) - current_bar['Low']) < (current_bar['High'] - current_bar['Low']) * 0.1):
-                analysis['price_action']['inverted_hammer_pattern'] = True
-            else:
-                analysis['price_action']['inverted_hammer_pattern'] = False
-
-            # Shooting Star (simplified: small body, long upper wick, little/no lower wick, bearish context)
-            # Similar to inverted hammer, but typically appears after an uptrend
-            # For simplicity, we'll use the same logic as inverted hammer for now, and let AI interpret context
-            analysis['price_action']['shooting_star_pattern'] = analysis['price_action']['inverted_hammer_pattern']
-
-            # Hanging Man (simplified: small body, long lower wick, little/no upper wick, bullish context)
-            # Similar to hammer, but typically appears after an uptrend
-            # For simplicity, we'll use the same logic as hammer for now, and let AI interpret context
-            analysis['price_action']['hanging_man_pattern'] = analysis['price_action']['hammer_pattern']
-
-            # Morning Star (simplified: 3-bar pattern)
-            # Bar 1: Long bearish candle
-            # Bar 2: Small body (doji or small candle), gaps down
-            # Bar 3: Long bullish candle, closes well into 1st bar's body
-            if len(df_5min_with_ta) >= 3:
-                bar1 = df_5min_with_ta.iloc[-3]
-                bar2 = df_5min_with_ta.iloc[-2]
-                bar3 = df_5min_with_ta.iloc[-1]
-
-                if (bar1['Close'] < bar1['Open'] and # Bar 1 bearish
-                    abs(bar1['Open'] - bar1['Close']) > (bar1['High'] - bar1['Low']) * 0.6 and # Bar 1 long body
-                    abs(bar2['Open'] - bar2['Close']) < (bar2['High'] - bar2['Low']) * 0.3 and # Bar 2 small body
-                    bar2['High'] < bar1['Close'] and # Bar 2 gaps down
-                    bar3['Close'] > bar3['Open'] and # Bar 3 bullish
-                    abs(bar3['Open'] - bar3['Close']) > (bar3['High'] - bar3['Low']) * 0.6 and # Bar 3 long body
-                    bar3['Close'] > bar1['Open'] and bar3['Open'] < bar1['Close']):
-                    analysis['price_action']['morning_star_pattern'] = True
-                else:
-                    analysis['price_action']['morning_star_pattern'] = False
-            else:
-                analysis['price_action']['morning_star_pattern'] = False
-
-            # Evening Star (simplified: 3-bar pattern)
-            # Bar 1: Long bullish candle
-            # Bar 2: Small body (doji or small candle), gaps up
-            # Bar 3: Long bearish candle, closes well into 1st bar's body
-            if len(df_5min_with_ta) >= 3:
-                bar1 = df_5min_with_ta.iloc[-3]
-                bar2 = df_5min_with_ta.iloc[-2]
-                bar3 = df_5min_with_ta.iloc[-1]
-
-                if (bar1['Close'] > bar1['Open'] and # Bar 1 bullish
-                    abs(bar1['Open'] - bar1['Close']) > (bar1['High'] - bar1['Low']) * 0.6 and # Bar 1 long body
-                    abs(bar2['Open'] - bar2['Close']) < (bar2['High'] - bar2['Low']) * 0.3 and # Bar 2 small body
-                    bar2['Low'] > bar1['Close'] and # Bar 2 gaps up
-                    bar3['Close'] < bar3['Open'] and # Bar 3 bearish
-                    abs(bar3['Open'] - bar3['Close']) > (bar3['High'] - bar3['Low']) * 0.6 and # Bar 3 long body
-                    bar3['Close'] < bar1['Open'] and bar3['Open'] > bar1['Close']):
-                    analysis['price_action']['evening_star_pattern'] = True
-                else:
-                    analysis['price_action']['evening_star_pattern'] = False
-            else:
-                analysis['price_action']['evening_star_pattern'] = False
-
-        # Simplified General Breakout Detection (using Bollinger Bands)
-        # Ensure BBands are calculated in technical_indicators for 5min
-        bb_upper = analysis['technical_indicators']['5min'].get('bb_upper')
-        bb_lower = analysis['technical_indicators']['5min'].get('bb_lower')
-
-        if bb_upper is not None and bb_lower is not None:
-            if latest_bar['Close'] > bb_upper:
-                analysis['price_action']['general_breakout'] = "Bullish Breakout (above BBands)"
-            elif latest_bar['Close'] < bb_lower:
-                analysis['price_action']['general_breakout'] = "Bearish Breakout (below BBands)"
-            else:
-                analysis['price_action']['general_breakout'] = "No significant breakout (within BBands)"
-        else:
-            analysis['price_action']['general_breakout'] = "N/A (BBands not available)"
-
-    # --- 1-Minute Analysis: Precise Entry ---
-    df_1min = dfs.get('1min')
-    if df_1min is not None and not df_1min.empty:
-        if 'latest_close' not in analysis['price_action']:
-            analysis['price_action']['latest_close'] = df_1min['Close'].iloc[-1]
 
     return analysis

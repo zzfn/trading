@@ -14,11 +14,11 @@ from alpaca.data.timeframe import TimeFrame
 from datetime import datetime
 from analysis import technical_analysis
 
-def get_bars_from_alpaca(symbol: str, timeframe: TimeFrame, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+def get_bars_from_alpaca(symbol: str, timeframe: TimeFrame, start_date: datetime, end_date: datetime, resample_to_4h: bool = False) -> Optional[pd.DataFrame]:
     """
     Fetches historical stock bars from Alpaca. It will use the free IEX feed.
+    Can also resample 1-hour data to 4-hour data.
     """
-    # For free data, we must use the IEX feed. The client for that is the default.
     client = StockHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
     
     request_params = StockBarsRequest(
@@ -26,7 +26,7 @@ def get_bars_from_alpaca(symbol: str, timeframe: TimeFrame, start_date: datetime
         timeframe=timeframe,
         start=start_date,
         end=end_date,
-        feed='iex' # Explicitly request the free IEX data feed
+        feed='iex'
     )
     try:
         bars = client.get_stock_bars(request_params)
@@ -39,7 +39,16 @@ def get_bars_from_alpaca(symbol: str, timeframe: TimeFrame, start_date: datetime
         if df.index.tz is not None:
             df.index = df.index.tz_convert(None)
         df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
-        
+
+        if resample_to_4h and timeframe == TimeFrame.Hour:
+            df = df.resample('4H').agg({
+                'Open': 'first',
+                'High': 'max',
+                'Low': 'min',
+                'Close': 'last',
+                'Volume': 'sum'
+            }).dropna()
+
         # Calculate technical indicators and detect Pin Bar
         _, df_with_ta = technical_analysis.calculate_technical_indicators(df.copy())
         df_with_ta = technical_analysis.detect_pin_bar(df_with_ta)
