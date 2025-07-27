@@ -1,5 +1,17 @@
 import pandas as pd
 import pandas_ta as ta
+import numpy as np
+
+def detect_pin_bar(df):
+    df['Body'] = abs(df['Close'] - df['Open'])
+    df['Upper_Shadow'] = df['High'] - df[['Open', 'Close']].max(axis=1)
+    df['Lower_Shadow'] = df[['Open', 'Close']].min(axis=1) - df['Low']
+    df['Pin_Bar'] = False
+    # 定义Pin Bar规则：实体小于K线范围的30%，上/下影线大于实体的2倍
+    df.loc[(df['Body'] < 0.3 * (df['High'] - df['Low'])) & 
+           ((df['Upper_Shadow'] > 2 * df['Body']) | (df['Lower_Shadow'] > 2 * df['Body'])), 
+           'Pin_Bar'] = True
+    return df
 
 def calculate_technical_indicators(df: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
     """
@@ -144,6 +156,24 @@ def analyze_price_action(dfs: dict) -> dict:
             else:
                 analysis['price_action']['relative_to_90d_range'] = "Within 90-day Range"
 
+        # N-day High/Low Breakout Detection
+        periods = {'3d': analysis['price_action'].get('daily_3d_high'), '7d': analysis['price_action'].get('daily_7d_high'),
+                   '30d': analysis['price_action'].get('daily_30d_high'), '90d': analysis['price_action'].get('daily_90d_high')}
+        periods_low = {'3d': analysis['price_action'].get('daily_3d_low'), '7d': analysis['price_action'].get('daily_7d_low'),
+                       '30d': analysis['price_action'].get('daily_30d_low'), '90d': analysis['price_action'].get('daily_90d_low')}
+
+        for p_key, p_high in periods.items():
+            if p_high is not None and latest_daily_close >= p_high:
+                analysis['price_action'][f'daily_{p_key}_high_breakout'] = True
+            else:
+                analysis['price_action'][f'daily_{p_key}_high_breakout'] = False
+        
+        for p_key, p_low in periods_low.items():
+            if p_low is not None and latest_daily_close <= p_low:
+                analysis['price_action'][f'daily_{p_key}_low_breakout'] = True
+            else:
+                analysis['price_action'][f'daily_{p_key}_low_breakout'] = False
+
     # --- 5-Minute Analysis: Candlestick & Volume Confirmation ---
     df_5min = dfs.get('5min')
     if df_5min is not None and not df_5min.empty:
@@ -157,22 +187,73 @@ def analyze_price_action(dfs: dict) -> dict:
         analysis['price_action']['latest_low'] = latest_bar['Low']
         analysis['price_action']['latest_close'] = latest_bar['Close']
 
+        # Stop Loss / Take Profit Calculations
+        latest_close = analysis['price_action']['latest_close']
+        atr_value = analysis['technical_indicators']['5min'].get('atr') # ATR_14 is mapped to 'atr'
+
+        if atr_value is not None:
+            # ATR-based SL/TP (for a long position entry at latest_close)
+            atr_sl_multiplier = 2.0
+            atr_tp_multiplier = 3.0
+            analysis['price_action']['atr_stop_loss'] = latest_close - (atr_sl_multiplier * atr_value)
+            analysis['price_action']['atr_take_profit'] = latest_close + (atr_tp_multiplier * atr_value)
+        else:
+            analysis['price_action']['atr_stop_loss'] = None
+            analysis['price_action']['atr_take_profit'] = None
+
+        # Fixed Points SL/TP (for a long position entry at latest_close)
+        # These values are examples and should be adjusted based on asset and timeframe
+        fixed_points_sl = 50.0 # Example: 50 points below entry
+        fixed_points_tp = 150.0 # Example: 150 points above entry
+        analysis['price_action']['fixed_points_stop_loss'] = latest_close - fixed_points_sl
+        analysis['price_action']['fixed_points_take_profit'] = latest_close + fixed_points_tp
+
+        # Key Price Level SL/TP Suggestions (for a long position entry at latest_close)
+        key_level_sl_suggestions = []
+        key_level_tp_suggestions = []
+
+        # Use daily swing points for key levels
+        daily_3d_low = analysis['price_action'].get('daily_3d_low')
+        daily_3d_high = analysis['price_action'].get('daily_3d_high')
+        daily_7d_low = analysis['price_action'].get('daily_7d_low')
+        daily_7d_high = analysis['price_action'].get('daily_7d_high')
+        fib_50_retracement_90d = analysis['price_action'].get('fib_50_retracement_90d')
+
+        if daily_3d_low is not None and latest_close > daily_3d_low:
+            key_level_sl_suggestions.append(f"Below 3-day Low ({daily_3d_low:.2f})")
+        if daily_7d_low is not None and latest_close > daily_7d_low:
+            key_level_sl_suggestions.append(f"Below 7-day Low ({daily_7d_low:.2f})")
+        if fib_50_retracement_90d is not None and latest_close > fib_50_retracement_90d:
+            key_level_sl_suggestions.append(f"Below 90-day Fib 50% Retracement ({fib_50_retracement_90d:.2f})")
+
+        if daily_3d_high is not None and latest_close < daily_3d_high:
+            key_level_tp_suggestions.append(f"Near 3-day High ({daily_3d_high:.2f})")
+        if daily_7d_high is not None and latest_close < daily_7d_high:
+            key_level_tp_suggestions.append(f"Near 7-day High ({daily_7d_high:.2f})")
+
+        analysis['price_action']['key_level_stop_loss_suggestions'] = key_level_sl_suggestions if key_level_sl_suggestions else ["None (No relevant low below current price)"]
+        analysis['price_action']['key_level_take_profit_suggestions'] = key_level_tp_suggestions if key_level_tp_suggestions else ["None (No relevant high above current price)"]
+
         # Volume Analysis
         avg_volume = df_5min_with_ta['Volume'].tail(20).mean()
         analysis['confirmation']['is_volume_high'] = latest_bar['Volume'] > (avg_volume * 1.5)
         
-        # Candlestick Pattern (Pin Bar detection) - existing
-        body_size = abs(latest_bar['Open'] - latest_bar['Close'])
-        total_range = latest_bar['High'] - latest_bar['Low']
-        upper_wick = latest_bar['High'] - max(latest_bar['Open'], latest_bar['Close'])
-        lower_wick = min(latest_bar['Open'], latest_bar['Close']) - latest_bar['Low']
-        candlestick_pattern = "None"
-        if total_range > 0 and body_size / total_range < 0.33:
-            if lower_wick > body_size * 2: 
-                candlestick_pattern = "Bullish Pin Bar"
-            elif upper_wick > body_size * 2:
-                candlestick_pattern = "Bearish Pin Bar"
-        analysis['price_action']['candlestick_pattern'] = candlestick_pattern
+        # Candlestick Pattern (Pin Bar detection)
+        df_5min_with_ta = detect_pin_bar(df_5min_with_ta.copy())
+        latest_bar_with_pin = df_5min_with_ta.iloc[-1]
+        if latest_bar_with_pin['Pin_Bar']:
+            analysis['price_action']['pin_bar_detected'] = True
+            # Determine if it's a bullish or bearish pin bar based on wick
+            body_size = abs(latest_bar_with_pin['Open'] - latest_bar_with_pin['Close'])
+            upper_wick = latest_bar_with_pin['High'] - max(latest_bar_with_pin['Open'], latest_bar_with_pin['Close'])
+            lower_wick = min(latest_bar_with_pin['Open'], latest_bar_with_pin['Close']) - latest_bar_with_pin['Low']
+            if lower_wick > upper_wick:
+                analysis['price_action']['pin_bar_type'] = "Bullish Pin Bar"
+            else:
+                analysis['price_action']['pin_bar_type'] = "Bearish Pin Bar"
+        else:
+            analysis['price_action']['pin_bar_detected'] = False
+            analysis['price_action']['pin_bar_type'] = "None"
 
         # Manual Candlestick Pattern Detection
         # Ensure there are enough bars for pattern recognition (at least 2 for engulfing, 3 for morning/evening star)

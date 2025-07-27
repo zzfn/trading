@@ -1,11 +1,12 @@
 import requests
 import json
-from config import OPENROUTER_API_KEY
+from config import OPENROUTER_API_KEY, current_config # 导入 current_config
+import time # 用于重试间隔
 
 def get_price_action_opportunity_report(symbol: str, analysis_data: dict):
     """
     Generates a comprehensive trading opportunity report using Price Action and Technical Indicators.
-    This function now streams the AI response.
+    This function now streams the AI response with retry mechanism.
     """
     def format_indicator(value, precision=2):
         return f"{value:.{precision}f}" if value is not None else "N/A"
@@ -116,36 +117,44 @@ def get_price_action_opportunity_report(symbol: str, analysis_data: dict):
    - **依据总结:** [用1-2句话总结此交易计划的核心逻辑，需同时提及价格行为和关键指标的共振。]
 """
 
-    try:
-        response = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "microsoft/mai-ds-r1:free",
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "stream": True  # Enable streaming
-            },
-            stream=True  # Important: enable streaming for requests library
-        )
-        response.raise_for_status()
+    for model_name in current_config.OPENROUTER_MODELS:
+        for attempt in range(current_config.OPENROUTER_RETRIES):
+            try:
+                print(f"Attempting to call OpenRouter API with model: {model_name}, attempt: {attempt + 1}")
+                response = requests.post(
+                    url="https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": model_name, # 使用配置的模型
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ],
+                        "stream": True  # Enable streaming
+                    },
+                    stream=True  # Important: enable streaming for requests library
+                )
+                response.raise_for_status()
 
-        for chunk in response.iter_lines():
-            if chunk:
-                decoded_chunk = chunk.decode('utf-8')
-                if decoded_chunk.startswith('data: '):
-                    try:
-                        json_data = json.loads(decoded_chunk[6:])
-                        if 'choices' in json_data and len(json_data['choices']) > 0:
-                            delta = json_data['choices'][0].get('delta', {})
-                            if 'content' in delta and delta['content']:
-                                yield delta['content']
-                    except json.JSONDecodeError:
-                        # Handle cases where a chunk might not be complete JSON
-                        pass
-    except requests.exceptions.RequestException as e:
-        yield f"Error calling OpenRouter API: {e}"
+                for chunk in response.iter_lines():
+                    if chunk:
+                        decoded_chunk = chunk.decode('utf-8')
+                        if decoded_chunk.startswith('data: '):
+                            try:
+                                json_data = json.loads(decoded_chunk[6:])
+                                if 'choices' in json_data and len(json_data['choices']) > 0:
+                                    delta = json_data['choices'][0].get('delta', {})
+                                    if 'content' in delta and delta['content']:
+                                        yield delta['content']
+                            except json.JSONDecodeError:
+                                # Handle cases where a chunk might not be complete JSON
+                                pass
+                return # If successful, exit the function
+
+            except requests.exceptions.RequestException as e:
+                print(f"Detailed OpenRouter API error for model {model_name}, attempt {attempt + 1}: {e}") # 后端打印详细错误
+                time.sleep(1) # 等待1秒后重试
+
+    yield "An error occurred while generating the report after multiple retries. Please try again later." # 所有模型和重试都失败

@@ -9,6 +9,8 @@ class Config:
     ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
     ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    OPENROUTER_MODELS = [model.strip() for model in os.getenv("OPENROUTER_MODELS", "microsoft/mai-ds-r1:free").split(',')]
+    OPENROUTER_RETRIES = int(os.getenv("OPENROUTER_RETRIES", 3))
     POLYGON_API_KEY = os.getenv("POLYGON_API_KEY")
     ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 
