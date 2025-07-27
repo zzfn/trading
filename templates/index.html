@@ -6,100 +6,74 @@
     <title>Stock Analysis Engine</title>
     <style>
         :root {
-            --primary-color: #4a90e2;
-            --text-color: #333;
-            --background-color: #f0f2f5;
-            --card-background: #fff;
-            --border-color: #e0e0e0;
-            --shadow-light: rgba(0, 0, 0, 0.05);
-            --shadow-medium: rgba(0, 0, 0, 0.1);
+            --bg-color: #f7f8fa;
+            --card-bg-color: #ffffff;
+            --primary-color: #3a7bd5;
+            --text-color: #333333;
+            --subtle-text-color: #666666;
+            --border-color: #e5e7eb;
+            --shadow-color: rgba(0, 0, 0, 0.05);
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: var(--font-sans);
             margin: 0;
             padding: 20px;
-            background-color: var(--background-color);
+            background-color: var(--bg-color);
             color: var(--text-color);
-            line-height: 1.6;
         }
 
         .container {
             max-width: 800px;
-            margin: 40px auto;
-            background-color: var(--card-background);
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 6px 20px var(--shadow-light);
-            border: 1px solid var(--border-color);
+            margin: 20px auto;
         }
 
-        h1 {
-            color: var(--primary-color);
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2.2em;
-            font-weight: 600;
-        }
-
+        /* --- Input Section --- */
         .input-section {
             display: flex;
-            gap: 15px;
-            margin-bottom: 25px;
-            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
         }
 
         input[type="text"] {
             flex-grow: 1;
-            padding: 12px 15px;
+            padding: 8px 12px;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1em;
+            border-radius: 6px;
+            font-size: 0.95em;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         input[type="text"]:focus {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+            box-shadow: 0 0 0 3px rgba(58, 123, 213, 0.2);
             outline: none;
         }
 
         button {
-            padding: 12px 25px;
+            padding: 8px 20px;
             background-color: var(--primary-color);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 0.95em;
             font-weight: 500;
-            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            transition: background-color 0.2s ease;
         }
 
         button:hover {
-            background-color: #3a7bd5;
-            box-shadow: 0 4px 10px var(--shadow-medium);
+            background-color: #2a6ac5;
         }
-
-        .output-section {
-            background-color: #f9f9f9;
-            padding: 20px;
-            border-radius: 8px;
-            min-height: 350px;
-            max-height: 600px; /* Limit height for scrollability */
-            overflow-y: auto;
-            border: 1px solid var(--border-color);
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-            font-size: 0.95em;
-            white-space: pre-wrap; /* Preserve whitespace and wrap text */
-            word-wrap: break-word;
-        }
-
+        
         .status-message {
-            color: #666;
-            font-style: italic;
-            margin-bottom: 15px;
             text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            color: var(--subtle-text-color);
+            font-size: 0.9em;
         }
 
         .error-message {
@@ -107,25 +81,80 @@
             font-weight: bold;
         }
 
-        /* Markdown specific styles for better readability */
-        .output-section h1, .output-section h2, .output-section h3, .output-section h4, .output-section h5, .output-section h6 {
-            color: var(--primary-color);
-            margin-top: 1em;
-            margin-bottom: 0.5em;
+        /* --- Report/Output Section --- */
+        .output-section {
+            background-color: var(--card-bg-color);
+            padding: 30px 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px var(--shadow-color);
+            border: 1px solid var(--border-color);
+            min-height: 400px;
+        }
+
+        /* --- Markdown Best Practices --- */
+        .output-section h1, .output-section h2, .output-section h3 {
+            font-weight: 600;
+            color: #111;
+            margin-top: 1.5em;
+            margin-bottom: 0.6em;
+            line-height: 1.3;
             border-bottom: 1px solid var(--border-color);
-            padding-bottom: 0.3em;
+            padding-bottom: 0.4em;
         }
+
+        .output-section h1 {
+            font-size: 1.8em;
+        }
+
+        .output-section h2 {
+            font-size: 1.4em;
+        }
+        
+        .output-section h3 {
+            font-size: 1.2em;
+            border-bottom: none;
+        }
+
         .output-section p {
-            margin-bottom: 0.8em;
+            line-height: 1.6;
+            margin-bottom: 1em;
         }
+
         .output-section ul {
-            list-style-type: disc;
-            margin-left: 20px;
-            margin-bottom: 0.8em;
+            padding-left: 20px;
+            margin-bottom: 1em;
         }
+
+        .output-section li {
+            margin-bottom: 0.5em;
+            line-height: 1.6;
+        }
+
         .output-section strong {
-            color: var(--text-color);
+            font-weight: 600;
+            color: #000;
         }
+        
+        .output-section pre {
+            background-color: #f4f5f7;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        .output-section code {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            background-color: #f4f5f7;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+        }
+        
+        .output-section pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+
     </style>
 </head>
 <body>
@@ -135,8 +164,10 @@
             <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., TSLA, SPY)">
             <button id="analyzeButton">Analyze</button>
         </div>
-        <div class="status-message" id="statusMessage"></div>
-        <div class="output-section" id="outputArea"></div>
+        <div class="status-message" id="statusMessage">Enter a symbol and click Analyze to begin.</div>
+        <div class="output-section" id="outputArea">
+            <!-- Analysis report will be rendered here -->
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -148,10 +179,10 @@
             const outputArea = document.getElementById('outputArea');
             const statusMessage = document.getElementById('statusMessage');
 
-            outputArea.innerHTML = ''; // Clear previous output
-            fullMarkdownContent = ''; // Reset markdown content
+            outputArea.innerHTML = ''; 
+            fullMarkdownContent = ''; 
             statusMessage.textContent = 'Connecting to server...';
-            statusMessage.className = 'status-message'; // Reset status message class
+            statusMessage.className = 'status-message';
 
             if (!symbol) {
                 statusMessage.textContent = 'Please enter a stock symbol.';
@@ -167,7 +198,6 @@
                 } else if (data.status === 'ai_chunk') {
                     fullMarkdownContent += data.content;
                     outputArea.innerHTML = marked.parse(fullMarkdownContent);
-                    outputArea.scrollTop = outputArea.scrollHeight; // Scroll to bottom
                 } else if (data.status === 'complete') {
                     statusMessage.textContent = 'Analysis complete!';
                     eventSource.close();
