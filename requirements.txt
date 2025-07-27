@@ -4,3 +4,4 @@ pandas-ta
 python-dotenv
 mplfinance
 Flask
+alpaca-py
