@@ -3,9 +3,9 @@ import json
 from config import OPENROUTER_API_KEY, current_config # 导入 current_config
 import time # 用于重试间隔
 from utils.formatters import format_indicator, format_indicator_dict
-from templates.ai_prompts import generate_price_action_prompt
+from templates.ai_prompts import generate_trading_signal_prompt
 
-def get_price_action_opportunity_report(symbol: str, analysis_data: dict, backtest_results: dict = None):
+def get_ai_analysis(symbol: str, analysis_data: dict, backtest_results: dict = None, current_time: str = 'N/A'):
     """
     Generates a comprehensive trading opportunity report using Price Action and Technical Indicators.
     This function now streams the AI response with retry mechanism.
@@ -18,7 +18,7 @@ def get_price_action_opportunity_report(symbol: str, analysis_data: dict, backte
     if latest_close_price is not None:
         yield f"**{symbol} 最新收盘价:** {format_indicator(latest_close_price)}\n\n"
 
-    prompt = generate_price_action_prompt(symbol, analysis_data)
+    prompt = generate_trading_signal_prompt(symbol, analysis_data, backtest_results, current_time)
 
     for model_name in current_config.OPENROUTER_MODELS:
         for attempt in range(current_config.OPENROUTER_RETRIES):

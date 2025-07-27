@@ -1,5 +1,7 @@
 def format_indicator(value, precision=2):
-    return f"{value:.{precision}f}" if value is not None else "N/A"
+    if isinstance(value, (int, float)):
+        return f"{value:.{precision}f}"
+    return str(value) if value is not None else "N/A"
 
 def format_indicator_dict(indicators: dict) -> str:
     if not indicators:

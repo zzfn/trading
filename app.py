@@ -80,7 +80,8 @@ def generate_analysis_stream(symbol: str):
         # --- 5. Get AI Opportunity Report ---
         yield format_sse({"status": "info", "message": "Generating AI Opportunity Report..."}, event="message")
         full_report = ""
-        for chunk in ai_service.get_price_action_opportunity_report(symbol, analysis, backtest_results=backtest_results):
+        current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M EDT')
+        for chunk in ai_service.get_ai_analysis(symbol, analysis, backtest_results=backtest_results, current_time=current_time_str):
             full_report += chunk
             yield format_sse({"status": "ai_chunk", "content": chunk}, event="message")
         yield format_sse({"status": "info", "message": "Report generated."},
