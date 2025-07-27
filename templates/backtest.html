@@ -11,12 +11,14 @@
     {% include '_header.html' %}
     <div class="container mx-auto mt-4 p-4">
         <form id="backtest-form" class="bg-[var(--card-bg-color)] p-8 rounded-lg shadow-xl border border-[var(--border-color)] mb-8 flex flex-col sm:flex-row gap-4">
-            <div class="flex-grow">
+            <div class="sm:flex-grow">
                 <label for="symbol" class="block text-sm font-medium text-[var(--text-color)] mb-2">Stock Symbol</label>
                 <input type="text" class="w-full flex-grow px-5 py-3 border border-[var(--border-color)] rounded-lg text-base bg-[var(--bg-color)] text-[var(--text-color)] transition-colors duration-200 focus:border-[var(--accent-color)] focus:ring-2 focus:ring-[var(--accent-color)] outline-none" id="symbol" placeholder="e.g., AAPL" required>
             </div>
             <button type="submit" class="self-end px-8 py-3 bg-[#e94560] text-white rounded-lg cursor-pointer text-base font-semibold shadow-md transition-all duration-200 hover:bg-opacity-90 hover:scale-105">Run Backtest</button>
         </form>
+
+        <div id="backtestStatusMessage" class="text-center p-4 mb-8 text-[var(--subtle-text-color)] text-sm bg-[var(--card-bg-color)] rounded-lg shadow-md" style="display: none;"></div>
 
         <div id="results-container" class="mt-4" style="display: none;">
             <h2 class="text-2xl font-bold mb-4 text-[var(--text-color)]">Backtest Results</h2>
@@ -53,45 +55,58 @@
             const resultsContainer = document.getElementById('results-container');
             const summaryContainer = document.getElementById('summary-container');
             const tradesTbody = document.getElementById('trades-tbody');
+            const backtestStatusMessage = document.getElementById('backtestStatusMessage');
 
             resultsContainer.style.display = 'none';
             summaryContainer.innerHTML = '';
             tradesTbody.innerHTML = '';
 
-            const response = await fetch(`/backtest/${symbol}`, { method: 'POST' });
-            const data = await response.json();
+            // Show loading message
+            backtestStatusMessage.textContent = 'Running backtest...';
+            backtestStatusMessage.style.display = 'block';
 
-            if (data.status === 'success') {
-                const summary = data.results.summary;
-                const trades = data.results.trades;
+            try {
+                const response = await fetch(`/backtest/${symbol}`, { method: 'POST' });
+                const data = await response.json();
 
-                summaryContainer.innerHTML = `
-                    <p><strong>Win Rate:</strong> ${(summary.win_rate * 100).toFixed(2)}%</p>
-                    <p><strong>Total Trades:</strong> ${summary.total_trades}</p>
-                    <p><strong>Average PnL:</strong> ${summary.average_pnl.toFixed(2)}</p>
-                    <p><strong>Total PnL:</strong> ${summary.total_pnl.toFixed(2)}</p>
-                    <p><strong>Sharpe Ratio:</strong> ${summary.sharpe_ratio ? summary.sharpe_ratio.toFixed(2) : 'N/A'}</p>
-                    <p><strong>Max Drawdown:</strong> ${(summary.max_drawdown * 100).toFixed(2)}%</p>
-                `;
+                if (data.status === 'success') {
+                    const summary = data.results.summary;
+                    const trades = data.results.trades;
 
-                trades.forEach(trade => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.ref}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.direction}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.strategy}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${new Date(trade.entry_date).toLocaleString()}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.entry_price}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${new Date(trade.exit_date).toLocaleString()}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.exit_price}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.pnl_net}</td>
+                    summaryContainer.innerHTML = `
+                        <p><strong>Win Rate:</strong> ${(summary.win_rate * 100).toFixed(2)}%</p>
+                        <p><strong>Total Trades:</strong> ${summary.total_trades}</p>
+                        <p><strong>Average PnL:</strong> ${summary.average_pnl.toFixed(2)}</p>
+                        <p><strong>Total PnL:</strong> ${summary.total_pnl.toFixed(2)}</p>
+                        <p><strong>Sharpe Ratio:</strong> ${summary.sharpe_ratio ? summary.sharpe_ratio.toFixed(2) : 'N/A'}</p>
+                        <p><strong>Max Drawdown:</strong> ${(summary.max_drawdown * 100).toFixed(2)}%</p>
                     `;
-                    tradesTbody.appendChild(row);
-                });
 
-                resultsContainer.style.display = 'block';
-            } else {
-                alert(`Error: ${data.message}`);
+                    trades.forEach(trade => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.ref}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.direction}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.strategy}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${new Date(trade.entry_date).toLocaleString()}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.entry_price}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.exit_price}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.exit_price}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-color)]">${trade.pnl_net}</td>
+                        `;
+                        tradesTbody.appendChild(row);
+                    });
+
+                    resultsContainer.style.display = 'block';
+                } else {
+                    alert(`Error: ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Backtest failed:', error);
+                alert('An error occurred during backtest. Please try again.');
+            } finally {
+                // Hide loading message
+                backtestStatusMessage.style.display = 'none';
             }
         });
     </script>
