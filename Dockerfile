@@ -1,6 +1,8 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11
 
+ENV FLASK_ENV=production
+
 # Set the working directory in the container
 WORKDIR /app
 

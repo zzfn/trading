@@ -1,12 +1,13 @@
 from flask import Flask, jsonify, Response, render_template
 from services import data_service, ai_service
 from analysis import technical_analysis
-from config import ALPACA_API_KEY, OPENROUTER_API_KEY
+from config import ALPACA_API_KEY, OPENROUTER_API_KEY, current_config # Import current_config
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from datetime import datetime, timedelta
 import json
 
 app = Flask(__name__)
+app.debug = current_config.DEBUG # Set debug mode based on config
 
 def format_sse(data: dict, event: str = 'message') -> str:
     """
@@ -70,5 +71,4 @@ def generate_analysis_stream(symbol: str):
 def analyze_stock(symbol):
     return Response(generate_analysis_stream(symbol.upper()), mimetype="text/event-stream")
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# Remove the app.run() block as Gunicorn will handle running the app
