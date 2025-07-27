@@ -36,15 +36,15 @@ def generate_trading_signal_prompt(symbol: str, analysis_data: dict, backtest_re
 """
 
     prompt = f"""
-你是一位专业的、果断的交易信号分析师。你的任务是基于提供的多时间框架数据，为 {symbol} 生成一个清晰、可操作的交易信号报告。你必须在看涨（Call）和看跌（Put）之间做出明确选择，并提供具体的进入、目标和止损价格。
+你是一位遵循 Al Brooks 价格行为理论的专业交易员。你的任务是解读市场结构，识别高概率的交易机会。你必须在看涨（Call）和看跌（Put）之间做出明确选择，并提供具体的入场、目标和止损价格。
 
-**--- 分析框架 ---**
-你必须严格遵循以下思维过程：
-1.  **趋势与结构分析**: 首先判断更高时间框架（日线, 4小时, 1小时）的主要趋势是什么？当前价格是处于顺势延续、回调，还是潜在的趋势反转点？
-2.  **价格行为分析**: 在当前趋势背景下，寻找关键的价格行为信号（如 Pin Bar, 吞没形态）。这些信号是否出现在关键的支撑/阻力位或斐波那契水平上？成交量是否支持该信号？
-3.  **技术指标确认**: 使用RSI、MACD等指标来确认价格行为的动能。是否存在背离或超买/超卖信号来增强你的判断？
-4.  **风险/回报评估**: 基于最近的支撑/阻力位和ATR，设定一个合理的止损价（Stop Loss）和目标价（Target Price）。确保目标价至少是止损价距离的1.5倍以上。
-5.  **综合决策**: 结合所有证据，包括历史回测参考（如果提供），做出最终的交易决策（Call/Put），并估算胜率。
+**--- Al Brooks 分析框架 ---
+1.  **市场状态识别**: 当前市场是趋势市（Trend）还是区间震荡市（Trading Range）？是强势趋势还是弱势趋势？
+2.  **关键价格水平**: 识别重要的支撑和阻力，特别是前期高低点、趋势线、以及50%回调位。
+3.  **寻找交易信号**: 在关键价格水平附近寻找高概率的K线形态（如 Pin Bar, Engulfing Bar）。信号K线本身是否强劲？（例如，Pin Bar的影线是否足够长？收盘价是否超越了前一根K线？）
+4.  **入场与风险管理**: 基于信号K线的高低点设置入场（Entry）。使用ATR或信号K线的另一端设置止损（Stop Loss）。
+5.  **目标设定**: 至少以1倍的风险（止损距离）作为初始目标。寻找逻辑上的价格目标，如前期高低点或基于前期波段计算的1倍或2倍“衡量波动”（Measured Move）目标。
+6.  **综合决策**: 结合所有证据，特别是当前趋势的强度，做出最终的交易决策（Call/Put），并估算胜率。
 
 **--- 数据汇总 ---**
 
@@ -56,10 +56,11 @@ def generate_trading_signal_prompt(symbol: str, analysis_data: dict, backtest_re
    - **4小时趋势:** {analysis_data.get('trends', {}).get('4h', 'N/A')}
    - **1小时趋势:** {analysis_data.get('trends', {}).get('1h', 'N/A')}
 
-**2. 关键支撑与阻力:**
+**2. 关键价格水平:**
    - **前日高点/低点:** {format_indicator(analysis_data['price_action'].get('previous_day_high'))} / {format_indicator(analysis_data['price_action'].get('previous_day_low'))}
    - **90天高点/低点:** {format_indicator(analysis_data['price_action'].get('daily_90d_high'))} / {format_indicator(analysis_data['price_action'].get('daily_90d_low'))}
-   - **斐波那契回调位 (90天):** 38.2%: {format_indicator(analysis_data['price_action'].get('fib_382_retracement_90d'))}, 50%: {format_indicator(analysis_data['price_action'].get('fib_50_retracement_90d'))}, 61.8%: {format_indicator(analysis_data['price_action'].get('fib_618_retracement_90d'))}
+   - **90天波段50%回调位:** {format_indicator(analysis_data['price_action'].get('swing_50_retracement'))}
+   - **衡量波动目标 (基于前日日K):** 1倍: {format_indicator(analysis_data['price_action'].get('measured_move_1x'))}, 2倍: {format_indicator(analysis_data['price_action'].get('measured_move_2x'))}
 
 **3. 关键K线形态:**
    - **5分钟:** Pin Bar: {format_pin_bar('5min')}, 看涨吞没: {format_engulfing('5min', 'bullish')}, 看跌吞没: {format_engulfing('5min', 'bearish')}
@@ -67,9 +68,9 @@ def generate_trading_signal_prompt(symbol: str, analysis_data: dict, backtest_re
    - **4小时:** Pin Bar: {format_pin_bar('4h')}, 看涨吞没: {format_engulfing('4h', 'bullish')}, 看跌吞没: {format_engulfing('4h', 'bearish')}
 
 **4. 技术指标:**
-   - **5分钟:** RSI: {format_indicator(five_min_indicators.get('rsi'))}, MACD Hist: {format_indicator(five_min_indicators.get('macd_hist'))}, ATR: {format_indicator(five_min_indicators.get('atr'))}, Volume Spike: {analysis_data['price_action'].get('5min_pin_bar', {}).get('volume_spike', 'N/A')}
-   - **1小时:** RSI: {format_indicator(h1_indicators.get('rsi'))}, MACD Hist: {format_indicator(h1_indicators.get('macd_hist'))}
-   - **日线:** RSI: {format_indicator(daily_indicators.get('rsi'))}, MACD Hist: {format_indicator(daily_indicators.get('macd_hist'))}
+   - **5分钟:** RSI: {format_indicator(five_min_indicators.get('rsi'))}, MACD Hist: {format_indicator(five_min_indicators.get('macd_hist'))}, ATR: {format_indicator(five_min_indicators.get('atr'))}
+   - **1小时:** RSI: {format_indicator(h1_indicators.get('rsi'))}
+   - **日线:** RSI: {format_indicator(daily_indicators.get('rsi'))}
 {backtest_section}
 **--- 你的任务：生成交易信号报告 ---**
 
@@ -79,19 +80,19 @@ def generate_trading_signal_prompt(symbol: str, analysis_data: dict, backtest_re
 
 **当前价格**: [在此处插入当前价格]
 **信号**: [Call 或 Put]
-**目标价**: [在此处插入计算出的目标价]
-**止损价**: [在此处插入计算出的止损价]
-**胜率估算**: [在此处插入你的胜率估算，例如: 65.00%]
+**目标价**: [在此处插入计算出的目标价，优先考虑衡量波动目标]
+**止损价**: [在此处插入计算出的止损价，考虑ATR或信号K线]
+**胜率估算**: [在此处插入你的胜率估算，例如: 60%]
 
 **核心依据**:
-- **价格行为**: [描述最关键的K线形态和位置，例如: 5分钟看涨 Pin Bar，影线/实体比 2.5，靠近 30 天低点]
-- **趋势**: [描述当前趋势背景，例如: 1 小时上升趋势，5 分钟回调至支撑]
-- **技术指标**: [描述起决定性作用的指标读数，例如: 价格 > VWAP ($150.00)，成交量放大 1.6 倍，RSI=48]
-- **回测参考**: [如果适用，简要说明回测结果如何支持你的决策，例如: 历史胜率 65%，基于 1 个月 5 分钟数据]
+- **市场结构**: [描述当前市场是趋势还是震荡，以及你的主要判断依据]
+- **价格行为**: [描述最关键的K线信号及其位置，例如: 1小时看涨Pin Bar，测试了90天波段的50%回调位]
+- **入场与目标**: [简述你的入场逻辑和选择目标价的依据，例如: 在信号K线上方入场，目标为1倍衡量波动]
+- **回测参考**: [如果适用，简要说明回测结果如何支持你的决策]
 
 **风险提示**:
 - 每笔交易风险控制在账户的 1%-2%。
-- 考虑交易成本（佣金、滑点，如 Alpaca 每股 $0.0005）。
+- 考虑交易成本（佣金、滑点）。
 - 当前时间: {current_time}。
 """
     return prompt

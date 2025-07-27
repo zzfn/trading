@@ -10,13 +10,15 @@ def get_key_levels(analysis_data: dict) -> dict:
     # Support Levels
     levels['support']['daily_90d_low'] = pa.get('daily_90d_low')
     levels['support']['previous_day_low'] = pa.get('previous_day_low')
-    levels['support']['fib_382'] = pa.get('fib_382_retracement_90d')
-    levels['support']['fib_50'] = pa.get('fib_50_retracement_90d')
-    levels['support']['fib_618'] = pa.get('fib_618_retracement_90d')
+    levels['support']['swing_50_retracement'] = pa.get('swing_50_retracement')
 
     # Resistance Levels
     levels['resistance']['daily_90d_high'] = pa.get('daily_90d_high')
     levels['resistance']['previous_day_high'] = pa.get('previous_day_high')
+
+    # Measured Move Targets
+    levels['resistance']['measured_move_1x'] = pa.get('measured_move_1x')
+    levels['resistance']['measured_move_2x'] = pa.get('measured_move_2x')
 
     # Remove None values
     levels['support'] = {k: v for k, v in levels['support'].items() if v is not None}
@@ -137,13 +139,17 @@ def analyze_price_action(dfs: dict) -> dict:
         high_90d = analysis['price_action'].get('daily_90d_high')
         low_90d = analysis['price_action'].get('daily_90d_low')
         if high_90d is not None and low_90d is not None:
-            analysis['price_action']['fib_382_retracement_90d'] = high_90d - 0.382 * (high_90d - low_90d)
-            analysis['price_action']['fib_50_retracement_90d'] = high_90d - 0.5 * (high_90d - low_90d)
-            analysis['price_action']['fib_618_retracement_90d'] = high_90d - 0.618 * (high_90d - low_90d)
+            analysis['price_action']['swing_50_retracement'] = high_90d - 0.5 * (high_90d - low_90d)
 
         if len(df_daily_with_ta) > 1:
-            analysis['price_action']['previous_day_high'] = df_daily_with_ta['High'].iloc[-2]
-            analysis['price_action']['previous_day_low'] = df_daily_with_ta['Low'].iloc[-2]
+            prev_day = df_daily_with_ta.iloc[-2]
+            prev_high = prev_day['High']
+            prev_low = prev_day['Low']
+            prev_range = prev_high - prev_low
+            analysis['price_action']['previous_day_high'] = prev_high
+            analysis['price_action']['previous_day_low'] = prev_low
+            analysis['price_action']['measured_move_1x'] = prev_high + prev_range
+            analysis['price_action']['measured_move_2x'] = prev_high + 2 * prev_range
 
     key_levels = get_key_levels(analysis)
 
